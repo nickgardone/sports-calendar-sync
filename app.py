@@ -1,6 +1,9 @@
 import os
+import secrets
 from datetime import datetime
+from urllib.parse import urlencode
 
+import requests as http_requests
 from flask import (
     Flask, session, redirect, url_for, request,
     jsonify, render_template
@@ -10,12 +13,8 @@ from espn_client import ESPNClient
 from google_calendar import (
     CALENDAR_COLORS,
     GoogleCalendarWebClient,
-    create_web_flow,
 )
 from leagues import LEAGUE_CONFIG
-
-# Allow HTTP for local development (Render.com uses HTTPS automatically)
-os.environ.setdefault('OAUTHLIB_INSECURE_TRANSPORT', '1')
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
@@ -48,8 +47,16 @@ def error_page():
 
 
 # ---------------------------------------------------------------------------
-# OAuth
+# OAuth  (plain authorization-code flow, no PKCE — correct for server-side apps)
 # ---------------------------------------------------------------------------
+
+GOOGLE_AUTH_URL  = 'https://accounts.google.com/o/oauth2/v2/auth'
+GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+GOOGLE_SCOPES    = [
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'openid',
+]
 
 def _callback_uri():
     return url_for('oauth_callback', _external=True)
@@ -58,26 +65,25 @@ def _callback_uri():
 @app.route('/oauth/start')
 def oauth_start():
     client_id = os.environ.get('GOOGLE_CLIENT_ID')
-    client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
-    if not client_id or not client_secret:
+    if not client_id:
         return redirect(url_for('error_page', msg=(
             'Google OAuth credentials are not configured. '
             'Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.'
         )))
 
-    flow = create_web_flow(_callback_uri())
-    auth_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        prompt='consent',
-    )
+    state = secrets.token_urlsafe(32)
     session['oauth_state'] = state
-    # Persist PKCE code verifier across the Google redirect
-    try:
-        session['code_verifier'] = flow.oauth2session._client.code_verifier
-    except AttributeError:
-        pass
-    return redirect(auth_url)
+
+    params = {
+        'client_id':     client_id,
+        'redirect_uri':  _callback_uri(),
+        'response_type': 'code',
+        'scope':         ' '.join(GOOGLE_SCOPES),
+        'access_type':   'offline',
+        'prompt':        'consent',
+        'state':         state,
+    }
+    return redirect(GOOGLE_AUTH_URL + '?' + urlencode(params))
 
 
 @app.route('/oauth/callback')
@@ -85,28 +91,40 @@ def oauth_callback():
     if 'error' in request.args:
         return redirect(url_for('error_page', msg=f"Google OAuth error: {request.args['error']}"))
 
+    code = request.args.get('code')
+    if not code:
+        return redirect(url_for('error_page', msg='No authorization code received from Google.'))
+
     try:
-        flow = create_web_flow(_callback_uri())
-        # Restore PKCE code verifier if it was saved during oauth_start
-        code_verifier = session.pop('code_verifier', None)
-        fetch_kwargs = {'authorization_response': request.url}
-        if code_verifier:
-            fetch_kwargs['code_verifier'] = code_verifier
-        flow.fetch_token(**fetch_kwargs)
-        creds = flow.credentials
+        # Exchange the authorization code for tokens — no PKCE needed
+        token_resp = http_requests.post(GOOGLE_TOKEN_URL, data={
+            'code':          code,
+            'client_id':     os.environ.get('GOOGLE_CLIENT_ID'),
+            'client_secret': os.environ.get('GOOGLE_CLIENT_SECRET'),
+            'redirect_uri':  _callback_uri(),
+            'grant_type':    'authorization_code',
+        })
+        token_json = token_resp.json()
+
+        if 'error' in token_json:
+            raise ValueError(token_json.get('error_description', token_json['error']))
+
         session['credentials'] = {
-            'token': creds.token,
-            'refresh_token': creds.refresh_token,
-            'token_uri': creds.token_uri,
-            'client_id': creds.client_id,
-            'client_secret': creds.client_secret,
-            'scopes': list(creds.scopes) if creds.scopes else [],
+            'token':         token_json['access_token'],
+            'refresh_token': token_json.get('refresh_token'),
+            'token_uri':     GOOGLE_TOKEN_URL,
+            'client_id':     os.environ.get('GOOGLE_CLIENT_ID'),
+            'client_secret': os.environ.get('GOOGLE_CLIENT_SECRET'),
+            'scopes':        GOOGLE_SCOPES,
         }
+
         # Fetch the user's email for display
-        from googleapiclient.discovery import build
-        oauth2 = build('oauth2', 'v2', credentials=creds)
-        info = oauth2.userinfo().get().execute()
-        session['user_email'] = info.get('email', '')
+        user_resp = http_requests.get(
+            'https://www.googleapis.com/oauth2/v2/userinfo',
+            headers={'Authorization': f"Bearer {token_json['access_token']}"},
+        )
+        session['user_email'] = user_resp.json().get('email', '')
+
     except Exception as e:
         return redirect(url_for('error_page', msg=f"Failed to complete sign-in: {e}"))
 
