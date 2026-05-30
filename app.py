@@ -72,6 +72,11 @@ def oauth_start():
         prompt='consent',
     )
     session['oauth_state'] = state
+    # Persist PKCE code verifier across the Google redirect
+    try:
+        session['code_verifier'] = flow.oauth2session._client.code_verifier
+    except AttributeError:
+        pass
     return redirect(auth_url)
 
 
@@ -82,7 +87,12 @@ def oauth_callback():
 
     try:
         flow = create_web_flow(_callback_uri())
-        flow.fetch_token(authorization_response=request.url)
+        # Restore PKCE code verifier if it was saved during oauth_start
+        code_verifier = session.pop('code_verifier', None)
+        fetch_kwargs = {'authorization_response': request.url}
+        if code_verifier:
+            fetch_kwargs['code_verifier'] = code_verifier
+        flow.fetch_token(**fetch_kwargs)
         creds = flow.credentials
         session['credentials'] = {
             'token': creds.token,
