@@ -1,6 +1,7 @@
 # Google OAuth credentials — never commit these
 credentials.json
 token.json
+*credentials*.json
 
 # Python
 __pycache__/
