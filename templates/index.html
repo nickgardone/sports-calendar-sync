@@ -158,8 +158,88 @@
 
 <!-- Footer -->
 <footer style="text-align:center;padding:24px 0 8px;font-size:0.82rem;color:#94a3b8;">
-  <a href="/privacy" style="color:#94a3b8;text-decoration:none;">Privacy Policy</a>
+  <button onclick="document.getElementById('privacy-modal').classList.remove('hidden')"
+          style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:0.82rem;text-decoration:underline;padding:0;">
+    Privacy Policy
+  </button>
 </footer>
+
+<!-- Privacy Policy Modal -->
+<div id="privacy-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="privacy-title">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="privacy-title">Privacy Policy</h2>
+      <button class="modal-close" onclick="document.getElementById('privacy-modal').classList.add('hidden')" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="prose">
+        <p class="effective">Effective date: May 30, 2026</p>
+
+        <p>Sports Schedule Importer ("the App") is a tool that retrieves publicly available sports schedules and adds them to your Google Calendar on your request. This Privacy Policy explains what information we access, how we use it, and your rights regarding that information.</p>
+
+        <h2>1. Information We Access</h2>
+        <h3>Google Account Information</h3>
+        <p>When you connect your Google account, we request access to:</p>
+        <ul>
+          <li><strong>Your email address</strong> — used solely to display which account is connected while you are signed in. It is not stored on our servers.</li>
+          <li><strong>Your Google Calendar</strong> — we request permission to create and read calendar events so we can add sports schedules on your behalf.</li>
+        </ul>
+
+        <h3>Sports Schedule Data</h3>
+        <p>Schedule information (game dates, times, opponents, venues) is retrieved from publicly available sports data sources. We do not collect, store, or sell this data.</p>
+
+        <h2>2. How We Use Your Information</h2>
+        <p>We use the access you grant exclusively to:</p>
+        <ul>
+          <li>Display your email address so you can confirm which Google account is connected</li>
+          <li>Create calendar events in the Google Calendar you select</li>
+          <li>Check for existing events to avoid creating duplicates</li>
+        </ul>
+        <p>We do not use your data for advertising, analytics, profiling, or any purpose beyond the direct functionality described above.</p>
+
+        <h2>3. Data Storage and Retention</h2>
+        <p>We do not maintain a database or permanently store any user data. Specifically:</p>
+        <ul>
+          <li>Your Google OAuth access token is held in an encrypted, temporary session cookie that expires when you close your browser or sign out.</li>
+          <li>Your email address is held only in the same temporary session and is discarded when the session ends.</li>
+          <li>No calendar data, event details, or personal information is written to any server-side storage.</li>
+        </ul>
+
+        <h2>4. Data Sharing</h2>
+        <p>We do not sell, trade, rent, or share your personal information or Google account data with any third parties. Your data flows only between your browser, Google's servers, and the App's server for the purpose of creating calendar events.</p>
+
+        <h2>5. Google API Services</h2>
+        <p>The App's use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements. We only use Google user data to provide and improve the calendar sync feature directly requested by you.</p>
+
+        <h2>6. Revoking Access</h2>
+        <p>You can revoke the App's access to your Google account at any time by visiting <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account Permissions</a> and removing Sports Schedule Importer. You can also sign out of the App at any time using the "Sign out" link, which clears your session immediately.</p>
+
+        <h2>7. Security</h2>
+        <p>Session data is stored in encrypted cookies using a server-generated secret key. All communication between your browser and our server uses HTTPS. We do not store OAuth tokens beyond the duration of your active session.</p>
+
+        <h2>8. Children's Privacy</h2>
+        <p>The App is not directed at children under the age of 13. We do not knowingly collect information from children under 13.</p>
+
+        <h2>9. Changes to This Policy</h2>
+        <p>If we make material changes to this Privacy Policy, we will update the effective date at the top of this page. Continued use of the App after changes are posted constitutes acceptance of the updated policy.</p>
+
+        <h2>10. Contact</h2>
+        <p>If you have questions about this Privacy Policy or how your data is handled, please contact us at: <a href="mailto:ngardone@gmail.com">ngardone@gmail.com</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Close modal when clicking the overlay backdrop
+  document.getElementById('privacy-modal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.add('hidden');
+  });
+  // Close modal on Escape key
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') document.getElementById('privacy-modal').classList.add('hidden');
+  });
+</script>
 
 {% if authed %}
 <script>
