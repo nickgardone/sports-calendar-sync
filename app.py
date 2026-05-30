@@ -46,6 +46,11 @@ def error_page():
     return render_template('error.html', message=msg)
 
 
+@app.route('/privacy')
+def privacy():
+    return render_template('privacy.html')
+
+
 # ---------------------------------------------------------------------------
 # OAuth  (plain authorization-code flow, no PKCE — correct for server-side apps)
 # ---------------------------------------------------------------------------
