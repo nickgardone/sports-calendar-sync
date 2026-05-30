@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sports Schedule Importer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- Header -->
+  <header>
+    <a href="/" class="logo">
+      <div class="logo-icon">📅</div>
+      Sports Schedule Importer
+    </a>
+    {% if authed %}
+    <div class="user-info">
+      {% if user_email %}<span>{{ user_email }}</span>{% endif %}
+      <a href="/logout" class="btn-logout">Sign out</a>
+    </div>
+    {% endif %}
+  </header>
+
+  <!-- ── Landing (not signed in) ───────────────────────────────────────── -->
+  {% if not authed %}
+  <div class="card hero">
+    <div class="hero-icon">🏆</div>
+    <h1>Add your team's schedule to Google Calendar</h1>
+    <p>
+      Supports NFL, NBA, MLB, NHL, MLS, WNBA, PGA Tour, NASCAR, and UFC.<br>
+      Pick your team, choose a color, and sync every game in seconds.
+    </p>
+    <a href="/oauth/start" class="btn btn-google">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+           width="20" height="20" alt="Google" />
+      Connect Google Calendar
+    </a>
+  </div>
+
+  <!-- Feature list -->
+  <div class="card">
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <span style="font-size:1.3rem">🏈</span>
+        <div><strong>9 leagues supported</strong><br>
+          <span class="text-sm">NFL · NBA · MLB · NHL · MLS · WNBA · PGA Tour · NASCAR · UFC</span></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <span style="font-size:1.3rem">🏠</span>
+        <div><strong>Home &amp; away labeling</strong><br>
+          <span class="text-sm">Bills vs. Chiefs for home, Bills @ Chiefs for away</span></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <span style="font-size:1.3rem">🎨</span>
+        <div><strong>Custom event colors</strong><br>
+          <span class="text-sm">Color-code your games using any Google Calendar color</span></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <span style="font-size:1.3rem">🔒</span>
+        <div><strong>Your data stays yours</strong><br>
+          <span class="text-sm">OAuth connects directly to your Google account — nothing is stored</span></div>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- ── Signed in: main UI ─────────────────────────────────────────────── -->
+
+  <!-- Step 1: Find your team -->
+  <div class="card step-section" id="step-search">
+    <div class="section-title">
+      <div class="step-num">1</div>
+      Find your team or league
+    </div>
+
+    <div class="form-group">
+      <label for="league-select">League</label>
+      <select id="league-select">
+        {% for l in leagues %}
+        <option value="{{ l }}">{{ l }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group" id="team-input-wrap">
+      <label for="team-input">Team name</label>
+      <div class="search-row">
+        <input type="text" id="team-input" placeholder="e.g. Bills, Lakers, Yankees…" autocomplete="off" />
+        <button class="btn btn-primary" id="search-btn">Search</button>
+      </div>
+    </div>
+
+    <!-- Non-team sport (PGA / NASCAR / UFC) -->
+    <div id="event-sport-wrap" class="hidden">
+      <p class="text-sm" style="margin-bottom:14px;">
+        This league has a full season schedule — no team selection needed.
+      </p>
+      <button class="btn btn-primary" id="event-sport-btn">Load Full Schedule</button>
+    </div>
+
+    <!-- Team search results -->
+    <div id="team-results"></div>
+  </div>
+
+  <!-- Step 2: Calendar, color, sync -->
+  <div class="card step-section hidden" id="step-sync">
+    <div class="section-title">
+      <div class="step-num">2</div>
+      Choose calendar &amp; color
+    </div>
+
+    <div class="form-group">
+      <label for="calendar-select">Add to calendar</label>
+      <select id="calendar-select">
+        <option value="primary">My Calendar (primary)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Event color <span class="text-sm" style="text-transform:none;letter-spacing:0">(optional)</span></label>
+      <div class="color-row" id="color-picker">
+        {% for c in colors %}
+          {% if c.hex %}
+          <div class="color-swatch"
+               data-color-id="{{ c.id }}"
+               style="background:{{ c.hex }}"
+               title="{{ c.name }}"
+               role="button"
+               aria-label="{{ c.name }}"></div>
+          {% else %}
+          <div class="color-swatch color-swatch-default selected"
+               data-color-id=""
+               title="Calendar default"
+               role="button"
+               aria-label="Calendar default">–</div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- Selected team summary -->
+    <div id="selected-summary" class="text-sm" style="margin-bottom:16px;"></div>
+
+    <button class="btn btn-primary btn-full" id="sync-btn">
+      Add to Calendar
+    </button>
+
+    <!-- Status area -->
+    <div id="status-area" class="mt-12"></div>
+  </div>
+
+  {% endif %}
+</div><!-- /page-wrap -->
+
+{% if authed %}
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const teamBased = {{ team_based | tojson }};
+let selectedTeam = null;   // { id, name, league }
+let selectedColorId = '';  // '' = calendar default
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const leagueSelect    = document.getElementById('league-select');
+const teamInputWrap   = document.getElementById('team-input-wrap');
+const eventSportWrap  = document.getElementById('event-sport-wrap');
+const teamInput       = document.getElementById('team-input');
+const searchBtn       = document.getElementById('search-btn');
+const teamResults     = document.getElementById('team-results');
+const stepSync        = document.getElementById('step-sync');
+const calSelect       = document.getElementById('calendar-select');
+const colorPicker     = document.getElementById('color-picker');
+const syncBtn         = document.getElementById('sync-btn');
+const selectedSummary = document.getElementById('selected-summary');
+const statusArea      = document.getElementById('status-area');
+const eventSportBtn   = document.getElementById('event-sport-btn');
+
+// ── League change ──────────────────────────────────────────────────────────
+leagueSelect.addEventListener('change', () => {
+  resetSelection();
+  const league = leagueSelect.value;
+  if (teamBased[league]) {
+    teamInputWrap.classList.remove('hidden');
+    eventSportWrap.classList.add('hidden');
+  } else {
+    teamInputWrap.classList.add('hidden');
+    eventSportWrap.classList.remove('hidden');
+  }
+});
+
+// ── Team search ────────────────────────────────────────────────────────────
+searchBtn.addEventListener('click', searchTeams);
+teamInput.addEventListener('keydown', e => { if (e.key === 'Enter') searchTeams(); });
+
+async function searchTeams() {
+  const query = teamInput.value.trim();
+  if (!query) return;
+
+  searchBtn.disabled = true;
+  searchBtn.textContent = '…';
+  teamResults.innerHTML = '<p class="text-sm" style="padding:8px 0">Searching…</p>';
+  resetSelection();
+
+  const res = await fetch('/api/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ team: query, league: leagueSelect.value }),
+  });
+  const teams = await res.json();
+
+  searchBtn.disabled = false;
+  searchBtn.textContent = 'Search';
+
+  if (!teams.length) {
+    teamResults.innerHTML = '<p class="text-sm" style="padding:8px 0;color:#ef4444">No teams found. Try a shorter name or check the league.</p>';
+    return;
+  }
+
+  teamResults.innerHTML = teams.map(t => `
+    <div class="team-card" data-id="${t.id}" data-name="${t.name}" data-league="${t.league}">
+      <span class="team-name">${t.name}</span>
+      <span class="league-badge">${t.league}</span>
+    </div>
+  `).join('');
+
+  teamResults.querySelectorAll('.team-card').forEach(card => {
+    card.addEventListener('click', () => selectTeam(card));
+  });
+}
+
+function selectTeam(card) {
+  teamResults.querySelectorAll('.team-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  selectedTeam = {
+    id: card.dataset.id,
+    name: card.dataset.name,
+    league: card.dataset.league,
+  };
+  showSyncStep();
+}
+
+// ── Non-team sport (PGA / NASCAR / UFC) ───────────────────────────────────
+eventSportBtn.addEventListener('click', () => {
+  selectedTeam = { id: null, name: leagueSelect.value, league: leagueSelect.value };
+  showSyncStep();
+});
+
+// ── Show step 2 ────────────────────────────────────────────────────────────
+async function showSyncStep() {
+  stepSync.classList.remove('hidden');
+  statusArea.innerHTML = '';
+
+  selectedSummary.textContent = `Ready to sync: ${selectedTeam.name} (${selectedTeam.league})`;
+
+  // Load calendars if not already loaded
+  if (calSelect.options.length <= 1) {
+    const res = await fetch('/api/calendars');
+    const cals = await res.json();
+    if (Array.isArray(cals)) {
+      calSelect.innerHTML = cals.map(c =>
+        `<option value="${c.id}">${c.name}</option>`
+      ).join('');
+    }
+  }
+
+  stepSync.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Color picker ───────────────────────────────────────────────────────────
+colorPicker.addEventListener('click', e => {
+  const swatch = e.target.closest('.color-swatch');
+  if (!swatch) return;
+  colorPicker.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+  swatch.classList.add('selected');
+  selectedColorId = swatch.dataset.colorId;
+});
+
+// ── Sync ───────────────────────────────────────────────────────────────────
+syncBtn.addEventListener('click', async () => {
+  if (!selectedTeam) return;
+
+  syncBtn.disabled = true;
+  statusArea.innerHTML = `
+    <div class="spinner">
+      <div class="spinner-ring"></div>
+      Syncing schedule to Google Calendar…
+    </div>`;
+
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
+
+  const res = await fetch('/api/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      team_id:     selectedTeam.id,
+      team_name:   selectedTeam.name,
+      league:      selectedTeam.league,
+      calendar_id: calSelect.value,
+      timezone:    tz,
+      color_id:    selectedColorId || null,
+    }),
+  });
+
+  const data = await res.json();
+  syncBtn.disabled = false;
+
+  if (data.status === 'no_schedule') {
+    statusArea.innerHTML = `
+      <div class="alert alert-warning">
+        📭 <strong>Schedule not available yet</strong><br>${data.message}
+      </div>`;
+    return;
+  }
+
+  if (data.error) {
+    statusArea.innerHTML = `
+      <div class="alert alert-error">
+        ❌ <strong>Something went wrong</strong><br>${data.error}
+      </div>`;
+    return;
+  }
+
+  if (data.status === 'success') {
+    const parts = [];
+    if (data.created)  parts.push(`<div class="stat"><strong>${data.created}</strong> added</div>`);
+    if (data.skipped)  parts.push(`<div class="stat"><strong>${data.skipped}</strong> already existed</div>`);
+    if (data.errors)   parts.push(`<div class="stat" style="color:#dc2626"><strong>${data.errors}</strong> errors</div>`);
+
+    statusArea.innerHTML = `
+      <div class="alert alert-success">
+        ✅ <strong>Done!</strong> ${selectedTeam.name} schedule synced to your calendar.
+        <div class="result-stats">${parts.join('')}</div>
+      </div>`;
+  }
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function resetSelection() {
+  selectedTeam = null;
+  teamResults.innerHTML = '';
+  stepSync.classList.add('hidden');
+  statusArea.innerHTML = '';
+}
+
+// Trigger league toggle on load
+leagueSelect.dispatchEvent(new Event('change'));
+</script>
+{% endif %}
+
+</body>
+</html>

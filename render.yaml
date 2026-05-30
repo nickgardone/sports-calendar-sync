@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: sports-schedule-importer
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: OAUTHLIB_INSECURE_TRANSPORT
+        value: "0"
