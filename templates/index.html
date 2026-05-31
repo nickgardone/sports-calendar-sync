@@ -104,6 +104,8 @@
         🍎 &nbsp;Add to Apple Calendar
       </a>
 
+      <div id="apple-status-area" class="mt-12"></div>
+
       <p class="text-sm" style="margin-top:14px;color:#94a3b8;">
         If the schedule hasn't been released yet, events will appear automatically once it is.
       </p>
@@ -471,9 +473,22 @@ appleEventSportBtn.addEventListener('click', () => {
   loadAppleSeason(appleSelectedTeam);
 });
 
+// Confirmation message when user taps "Add to Apple Calendar"
+// We can't detect what they chose in the native iOS dialog, but the message
+// is waiting for them when they return to Safari after tapping Subscribe.
+appleCalendarLink.addEventListener('click', () => {
+  if (!appleSelectedTeam || !appleCalendarLink.href.startsWith('webcal')) return;
+  document.getElementById('apple-status-area').innerHTML = `
+    <div class="alert alert-success">
+      ✅ <strong>Tap Subscribe in the prompt</strong> and your
+      ${appleSelectedTeam.name} games will appear in Apple Calendar within a few seconds.
+    </div>`;
+});
+
 function resetAppleSearch() {
   appleTeamResults.innerHTML = '';
   appleStepSync.classList.add('hidden');
+  document.getElementById('apple-status-area').innerHTML = '';
   appleCalendarLink.href            = '#';
   appleCalendarLink.style.opacity   = '1';
   appleCalendarLink.style.pointerEvents = 'auto';
@@ -667,8 +682,14 @@ syncBtn.addEventListener('click', async () => {
 
     statusArea.innerHTML = `
       <div class="alert alert-success">
-        ✅ <strong>Done!</strong> ${selectedTeam.name} schedule synced to your calendar.
+        ✅ <strong>Done!</strong> ${selectedTeam.name} schedule synced to Google Calendar.
         <div class="result-stats">${parts.join('')}</div>
+        <div style="margin-top:14px;">
+          <a href="https://calendar.google.com" target="_blank" rel="noopener"
+             style="color:#166534;font-weight:600;text-decoration:underline;">
+            Open Google Calendar →
+          </a>
+        </div>
       </div>`;
   }
 });
