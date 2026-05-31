@@ -85,25 +85,28 @@
       <div id="apple-team-results"></div>
     </div>
 
-    <!-- Apple Step 2: Download -->
-    <div class="card step-section hidden" id="apple-step-download">
+    <!-- Apple Step 2: Subscribe -->
+    <div class="card step-section hidden" id="apple-step-sync">
       <div class="section-title">
         <div class="step-num">2</div>
-        Download your schedule
+        Add to Apple Calendar
       </div>
 
       <div id="apple-selected-summary" class="text-sm" style="margin-bottom:16px;"></div>
 
       <p class="text-sm" style="margin-bottom:20px;">
-        Your schedule will download as a <strong>.ics file</strong>. Open it to import into
-        Apple Calendar, Outlook, or any other calendar app.
+        Tap the button below. Apple Calendar will ask you to subscribe — tap
+        <strong>Subscribe</strong> and every game appears in your calendar instantly.
+        Your calendar will also stay up to date automatically as the schedule changes.
       </p>
 
-      <button class="btn btn-apple btn-full" id="download-ics-btn">
-        ↓ &nbsp;Download .ics File
-      </button>
+      <a id="apple-calendar-link" href="#" class="btn btn-apple btn-full">
+        🍎 &nbsp;Add to Apple Calendar
+      </a>
 
-      <div id="apple-status-area" class="mt-12"></div>
+      <p class="text-sm" style="margin-top:14px;color:#94a3b8;">
+        If the schedule hasn't been released yet, events will appear automatically once it is.
+      </p>
     </div>
   </div>
 
@@ -336,17 +339,16 @@ backToChoiceBtn.addEventListener('click', () => {
 });
 
 // DOM refs
-const appleLeagueSelect   = document.getElementById('apple-league-select');
-const appleTeamInputWrap  = document.getElementById('apple-team-input-wrap');
-const appleEventSportWrap = document.getElementById('apple-event-sport-wrap');
-const appleTeamInput      = document.getElementById('apple-team-input');
-const appleSearchBtn      = document.getElementById('apple-search-btn');
-const appleTeamResults    = document.getElementById('apple-team-results');
-const appleStepDownload   = document.getElementById('apple-step-download');
+const appleLeagueSelect    = document.getElementById('apple-league-select');
+const appleTeamInputWrap   = document.getElementById('apple-team-input-wrap');
+const appleEventSportWrap  = document.getElementById('apple-event-sport-wrap');
+const appleTeamInput       = document.getElementById('apple-team-input');
+const appleSearchBtn       = document.getElementById('apple-search-btn');
+const appleTeamResults     = document.getElementById('apple-team-results');
+const appleStepSync        = document.getElementById('apple-step-sync');
 const appleSelectedSummary = document.getElementById('apple-selected-summary');
-const downloadIcsBtn      = document.getElementById('download-ics-btn');
-const appleStatusArea     = document.getElementById('apple-status-area');
-const appleEventSportBtn  = document.getElementById('apple-event-sport-btn');
+const appleCalendarLink    = document.getElementById('apple-calendar-link');
+const appleEventSportBtn   = document.getElementById('apple-event-sport-btn');
 
 let appleSelectedTeam = null;
 
@@ -402,84 +404,38 @@ async function searchAppleTeams() {
   });
 }
 
+function buildWebcalUrl(team) {
+  // webcal:// is identical to https:// but iOS/macOS intercept it and open Calendar
+  const params = new URLSearchParams({
+    team_id:   team.id   || '',
+    league:    team.league,
+    team_name: team.name,
+  });
+  return `webcal://${window.location.host}/ics?${params}`;
+}
+
 function selectAppleTeam(card) {
   appleTeamResults.querySelectorAll('.team-card').forEach(c => c.classList.remove('selected'));
   card.classList.add('selected');
   appleSelectedTeam = { id: card.dataset.id, name: card.dataset.name, league: card.dataset.league };
-  appleSelectedSummary.textContent = `Ready to download: ${appleSelectedTeam.name} (${appleSelectedTeam.league})`;
-  appleStepDownload.classList.remove('hidden');
-  appleStatusArea.innerHTML = '';
-  appleStepDownload.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  appleCalendarLink.href = buildWebcalUrl(appleSelectedTeam);
+  appleSelectedSummary.textContent = `Ready: ${appleSelectedTeam.name} (${appleSelectedTeam.league})`;
+  appleStepSync.classList.remove('hidden');
+  appleStepSync.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// Non-team sport
+// Non-team sport (PGA / NASCAR / UFC)
 appleEventSportBtn.addEventListener('click', () => {
   appleSelectedTeam = { id: null, name: appleLeagueSelect.value, league: appleLeagueSelect.value };
-  appleSelectedSummary.textContent = `Ready to download: ${appleSelectedTeam.name} — full season schedule`;
-  appleStepDownload.classList.remove('hidden');
-  appleStatusArea.innerHTML = '';
-  appleStepDownload.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-});
-
-// Download .ics
-downloadIcsBtn.addEventListener('click', async () => {
-  if (!appleSelectedTeam) return;
-
-  downloadIcsBtn.disabled = true;
-  appleStatusArea.innerHTML = `
-    <div class="spinner">
-      <div class="spinner-ring"></div>
-      Fetching schedule…
-    </div>`;
-
-  const res = await fetch('/api/download-ics', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      team_id:   appleSelectedTeam.id,
-      team_name: appleSelectedTeam.name,
-      league:    appleSelectedTeam.league,
-    }),
-  });
-
-  downloadIcsBtn.disabled = false;
-  const contentType = res.headers.get('Content-Type') || '';
-
-  if (contentType.includes('calendar')) {
-    const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `${appleSelectedTeam.name.replace(/\s+/g, '_')}_Schedule.ics`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    appleStatusArea.innerHTML = `
-      <div class="alert alert-success">
-        ✅ <strong>Downloaded!</strong> Open the .ics file to import into Apple Calendar or any calendar app.
-      </div>`;
-  } else {
-    const data = await res.json().catch(() => ({}));
-    if (data.status === 'no_schedule') {
-      appleStatusArea.innerHTML = `
-        <div class="alert alert-warning">
-          📭 <strong>Schedule not available yet</strong><br>${data.message}
-        </div>`;
-    } else {
-      appleStatusArea.innerHTML = `
-        <div class="alert alert-error">
-          ❌ <strong>Something went wrong</strong><br>${data.error || 'Please try again.'}
-        </div>`;
-    }
-  }
+  appleCalendarLink.href = buildWebcalUrl(appleSelectedTeam);
+  appleSelectedSummary.textContent = `Ready: ${appleSelectedTeam.name} — full season schedule`;
+  appleStepSync.classList.remove('hidden');
+  appleStepSync.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
 
 function resetAppleSearch() {
   appleTeamResults.innerHTML = '';
-  appleStepDownload.classList.add('hidden');
-  appleStatusArea.innerHTML = '';
+  appleStepSync.classList.add('hidden');
   appleSelectedTeam = null;
 }
 

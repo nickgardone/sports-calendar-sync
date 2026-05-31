@@ -308,39 +308,30 @@ def api_sync():
     })
 
 
-@app.route('/api/download-ics', methods=['POST'])
-def api_download_ics():
-    """Generate and return an .ics file for Apple Calendar / any calendar app."""
-    data = request.get_json() or {}
-    team_id    = data.get('team_id')
-    team_name  = data.get('team_name', '')
-    league_key = data.get('league', '').upper()
+@app.route('/ics')
+def serve_ics():
+    """
+    Serve a live .ics feed for Apple Calendar subscription (webcal:// protocol).
+    GET /ics?team_id=<id>&league=<NFL>&team_name=<Buffalo+Bills>
+    Apple Calendar fetches this URL on subscribe and periodically re-fetches to stay current.
+    Always returns a valid VCALENDAR (empty if the schedule hasn't been released yet).
+    """
+    team_id    = request.args.get('team_id') or None
+    team_name  = request.args.get('team_name', '')
+    league_key = request.args.get('league', '').upper()
 
     if league_key not in LEAGUE_CONFIG:
-        return jsonify({'error': f'Unknown league: {league_key}'}), 400
+        return Response('', status=400)
 
     cfg  = LEAGUE_CONFIG[league_key]
     espn = ESPNClient()
 
     if cfg['team_based']:
-        events, season_year = espn.get_team_schedule(team_id, league_key)
-        if not events:
-            return jsonify({
-                'status': 'no_schedule',
-                'message': (
-                    f"The {team_name} schedule for {datetime.now().year} "
-                    f"hasn't been released yet. Check back closer to the season start."
-                ),
-            })
-        games = [espn.parse_team_game(e, team_id, team_name, league_key) for e in events]
+        events, _ = espn.get_team_schedule(team_id, league_key)
+        games = [espn.parse_team_game(e, team_id, team_name, league_key) for e in events] if events else []
     else:
         events = espn.get_event_schedule(league_key)
-        if not events:
-            return jsonify({
-                'status': 'no_schedule',
-                'message': f"The {league_key} schedule hasn't been released yet. Check back later.",
-            })
-        games = [espn.parse_event_game(e, league_key) for e in events]
+        games = [espn.parse_event_game(e, league_key) for e in events] if events else []
 
     games = [g for g in games if g]
     cal_name = team_name or league_key
@@ -352,7 +343,8 @@ def api_download_ics():
     return Response(
         ics_content,
         mimetype='text/calendar; charset=utf-8',
-        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+        # inline so the OS/browser handles it as a calendar, not a file download
+        headers={'Content-Disposition': f'inline; filename="{filename}"'},
     )
 
 
