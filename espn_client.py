@@ -75,8 +75,9 @@ class ESPNClient:
         now = datetime.now()
         year = now.year
 
-        # Try current year, then next, then previous
-        for season_year in [year, year + 1, year - 1]:
+        # Try current year, then next (never fall back to previous — stale data
+        # would pollute live calendar subscriptions during the off-season gap)
+        for season_year in [year, year + 1]:
             data = self._get(url, params={'season': season_year})
             if data is None:
                 continue
