@@ -76,7 +76,7 @@ def generate_ics(games, calendar_name):
             end_dt = start_dt + timedelta(hours=game.get('duration_hours', 3))
             dtstart = start_dt.strftime('%Y%m%dT%H%M%SZ')
             dtend   = end_dt.strftime('%Y%m%dT%H%M%SZ')
-            uid     = f'sports-{i}-{dtstart}@sports-schedule-importer'
+            uid     = game.get('uid') or f'sports-{i}-{dtstart}@sports-schedule-importer'
 
             lines.append('BEGIN:VEVENT')
             lines.append(f'UID:{uid}')
@@ -370,9 +370,19 @@ def serve_ics():
     games = [g for g in games if g]
 
     # ── Tollgate: end-of-season reminder ────────────────────────────────────
-    # When the locked season has fully passed, inject one future event that
-    # appears in the user's Apple Calendar as a nudge to re-subscribe next season.
-    # (Future hook: this is also where the payment gate will live for Option A.)
+    # Once all games are in the past, check whether the NEXT season's schedule
+    # is already live on ESPN. If it is, inject a reminder event dated TODAY so
+    # it appears in Apple Calendar immediately — no waiting until next fall.
+    # If the new schedule isn't out yet, inject nothing; Apple Calendar will keep
+    # refreshing the subscription until it is, then the reminder appears.
+    # This is sports-agnostic: NFL (May release), NBA (Aug), MLB (Nov), etc. all
+    # handled correctly without hardcoding any dates.
+    #
+    # The UID is stable (team + season, not current time) so Apple Calendar
+    # updates the existing event on each refresh rather than creating duplicates.
+    #
+    # Future hook (Option A): payment check slots in here — return reminder only
+    # after the user has paid for the new season.
     if season and games:
         def _to_aware(dt):
             return dt if getattr(dt, 'tzinfo', None) else dt.replace(tzinfo=timezone.utc)
@@ -382,24 +392,45 @@ def serve_ics():
 
         if last_game < now_utc:
             # All games are in the past — season is over.
-            first_game = min(_to_aware(g['start_utc']) for g in games)
-            next_year  = int(season) + 1
-            try:
-                reminder_dt = first_game.replace(year=next_year)
-            except ValueError:
-                reminder_dt = first_game.replace(year=next_year, day=28)  # Feb-29 edge case
+            # Ask ESPN whether next season's data is available yet.
+            next_year      = int(season) + 1
+            next_available = False
 
-            app_url = request.host_url.rstrip('/')
-            games.append({
-                'title':          f'\U0001f514 Sync {cal_name} {next_year} schedule',
-                'start_utc':      reminder_dt,
-                'duration_hours': 1,
-                'location':       '',
-                'description': (
-                    f'The {cal_name} {season} season has ended.\n\n'
-                    f'Visit {app_url} to sync the {next_year} season to your calendar.'
-                ),
-            })
+            if cfg['team_based']:
+                next_events, _ = espn.get_team_schedule(team_id, league_key, season=str(next_year))
+                next_available  = bool(next_events)
+            else:
+                # Non-team sports: check if any event from the live feed is in next_year
+                raw = espn.get_event_schedule(league_key)
+                for ev in (raw or []):
+                    d = ev.get('date', '')
+                    if d:
+                        try:
+                            if datetime.fromisoformat(d.replace('Z', '+00:00')).year >= next_year:
+                                next_available = True
+                                break
+                        except Exception:
+                            pass
+
+            if next_available:
+                # New schedule is live — remind the user today.
+                # DTSTART floats to today so it always appears as current/upcoming
+                # until the user acts on it.
+                app_url     = request.host_url.rstrip('/')
+                today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+                games.append({
+                    'title':          f'\U0001f514 Sync {cal_name} {next_year} schedule',
+                    'start_utc':      today_start,
+                    'duration_hours': 24,
+                    'uid':            f'tollgate-{league_key}-{team_id or "noteam"}-{season}@sports-schedule-importer',
+                    'location':       '',
+                    'description': (
+                        f'The {cal_name} {next_year} schedule is now available!\n\n'
+                        f'Visit {app_url} to sync the {next_year} season to your calendar.'
+                    ),
+                })
+            # Next season not out yet — no reminder injected.
+            # Apple Calendar keeps refreshing; reminder appears once ESPN has the data.
     # ── End tollgate ─────────────────────────────────────────────────────────
 
     ics_content = generate_ics(games, cal_name)
