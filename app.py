@@ -250,6 +250,33 @@ def api_calendars():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/season')
+def api_season():
+    """
+    Return the active season year for a team/league.
+    Used by the Apple Calendar flow to lock the season into the webcal:// URL
+    before the user subscribes — prevents auto-advance to next season without
+    the user returning to the app (and eventually paying, per Option A).
+    Returns: { "season": 2026 } or { "season": null } if no schedule is out yet.
+    """
+    team_id    = request.args.get('team_id') or None
+    league_key = request.args.get('league', '').upper()
+
+    if league_key not in LEAGUE_CONFIG:
+        return jsonify({'error': 'Unknown league'}), 400
+
+    cfg  = LEAGUE_CONFIG[league_key]
+    espn = ESPNClient()
+
+    if cfg['team_based']:
+        _, season_year = espn.get_team_schedule(team_id, league_key)
+    else:
+        events     = espn.get_event_schedule(league_key)
+        season_year = datetime.now().year if events else None
+
+    return jsonify({'season': season_year})
+
+
 @app.route('/api/sync', methods=['POST'])
 def api_sync():
     if 'credentials' not in session:
@@ -311,39 +338,77 @@ def api_sync():
 @app.route('/ics')
 def serve_ics():
     """
-    Serve a live .ics feed for Apple Calendar subscription (webcal:// protocol).
-    GET /ics?team_id=<id>&league=<NFL>&team_name=<Buffalo+Bills>
-    Apple Calendar fetches this URL on subscribe and periodically re-fetches to stay current.
-    Always returns a valid VCALENDAR (empty if the schedule hasn't been released yet).
+    Live .ics feed for Apple Calendar subscriptions (webcal:// protocol).
+
+    The `season` query param locks this feed to a specific season year so Apple
+    Calendar's periodic refreshes never automatically pull in the following year's
+    schedule. When the season ends, a single reminder event is injected at
+    approximately the start of next season — it appears in the user's Apple Calendar
+    as a prompt to come back to the app (and eventually pay, per Option A).
+
+    GET /ics?team_id=<id>&league=NFL&team_name=Buffalo+Bills&season=2026
     """
     team_id    = request.args.get('team_id') or None
     team_name  = request.args.get('team_name', '')
     league_key = request.args.get('league', '').upper()
+    season     = request.args.get('season') or None   # locked season year
 
     if league_key not in LEAGUE_CONFIG:
         return Response('', status=400)
 
-    cfg  = LEAGUE_CONFIG[league_key]
-    espn = ESPNClient()
+    cal_name = team_name or league_key
+    cfg      = LEAGUE_CONFIG[league_key]
+    espn     = ESPNClient()
 
     if cfg['team_based']:
-        events, _ = espn.get_team_schedule(team_id, league_key)
+        events, _ = espn.get_team_schedule(team_id, league_key, season=season)
         games = [espn.parse_team_game(e, team_id, team_name, league_key) for e in events] if events else []
     else:
         events = espn.get_event_schedule(league_key)
-        games = [espn.parse_event_game(e, league_key) for e in events] if events else []
+        games  = [espn.parse_event_game(e, league_key) for e in events] if events else []
 
     games = [g for g in games if g]
-    cal_name = team_name or league_key
-    ics_content = generate_ics(games, cal_name)
 
-    safe = ''.join(c if c.isalnum() or c in (' ', '-', '_') else '' for c in cal_name)
-    filename = safe.replace(' ', '_') + '_Schedule.ics'
+    # ── Tollgate: end-of-season reminder ────────────────────────────────────
+    # When the locked season has fully passed, inject one future event that
+    # appears in the user's Apple Calendar as a nudge to re-subscribe next season.
+    # (Future hook: this is also where the payment gate will live for Option A.)
+    if season and games:
+        def _to_aware(dt):
+            return dt if getattr(dt, 'tzinfo', None) else dt.replace(tzinfo=timezone.utc)
+
+        now_utc   = datetime.now(timezone.utc)
+        last_game = max(_to_aware(g['start_utc']) for g in games)
+
+        if last_game < now_utc:
+            # All games are in the past — season is over.
+            first_game = min(_to_aware(g['start_utc']) for g in games)
+            next_year  = int(season) + 1
+            try:
+                reminder_dt = first_game.replace(year=next_year)
+            except ValueError:
+                reminder_dt = first_game.replace(year=next_year, day=28)  # Feb-29 edge case
+
+            app_url = request.host_url.rstrip('/')
+            games.append({
+                'title':          f'\U0001f514 Sync {cal_name} {next_year} schedule',
+                'start_utc':      reminder_dt,
+                'duration_hours': 1,
+                'location':       '',
+                'description': (
+                    f'The {cal_name} {season} season has ended.\n\n'
+                    f'Visit {app_url} to sync the {next_year} season to your calendar.'
+                ),
+            })
+    # ── End tollgate ─────────────────────────────────────────────────────────
+
+    ics_content = generate_ics(games, cal_name)
+    safe        = ''.join(c if c.isalnum() or c in (' ', '-', '_') else '' for c in cal_name)
+    filename    = safe.replace(' ', '_') + '_Schedule.ics'
 
     return Response(
         ics_content,
         mimetype='text/calendar; charset=utf-8',
-        # inline so the OS/browser handles it as a calendar, not a file download
         headers={'Content-Disposition': f'inline; filename="{filename}"'},
     )
 

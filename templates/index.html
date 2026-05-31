@@ -405,37 +405,79 @@ async function searchAppleTeams() {
 }
 
 function buildWebcalUrl(team) {
-  // webcal:// is identical to https:// but iOS/macOS intercept it and open Calendar
+  // webcal:// is identical to https:// but iOS/macOS intercept it and open Calendar.
+  // season is locked here so Apple Calendar's periodic refreshes never auto-advance
+  // to the following year — the user must return to the app to sync a new season.
   const params = new URLSearchParams({
-    team_id:   team.id   || '',
+    team_id:   team.id     || '',
     league:    team.league,
     team_name: team.name,
+    season:    team.season,   // tollgate: locked season year
   });
   return `webcal://${window.location.host}/ics?${params}`;
+}
+
+async function loadAppleSeason(team) {
+  // Determine the active season year from the server, then lock it into the webcal URL.
+  // This is the tollgate hook — when payment (Option A) is added, this call will also
+  // verify that the user has paid for this team/season before returning the season year.
+  appleSelectedSummary.textContent = `Checking schedule…`;
+  appleCalendarLink.style.opacity = '0.4';
+  appleCalendarLink.style.pointerEvents = 'none';
+  appleCalendarLink.style.display = '';
+  appleCalendarLink.href = '#';
+  appleStepSync.classList.remove('hidden');
+  appleStepSync.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  try {
+    const res  = await fetch('/api/season?' + new URLSearchParams({
+      team_id: team.id || '',
+      league:  team.league,
+    }));
+    const data = await res.json();
+
+    if (data.season) {
+      team.season = data.season;
+      appleCalendarLink.href           = buildWebcalUrl(team);
+      appleCalendarLink.style.opacity  = '1';
+      appleCalendarLink.style.pointerEvents = 'auto';
+      appleSelectedSummary.textContent = `Ready: ${team.name} — ${data.season} season`;
+    } else {
+      // Schedule not released yet — hide button, show message
+      appleCalendarLink.style.display = 'none';
+      appleSelectedSummary.innerHTML  = `
+        <div class="alert alert-warning" style="margin:0">
+          📭 <strong>Schedule not available yet</strong><br>
+          The ${team.name} schedule hasn't been released. Check back closer to the season start.
+        </div>`;
+    }
+  } catch (e) {
+    appleSelectedSummary.textContent = 'Something went wrong. Please try again.';
+    appleCalendarLink.style.opacity  = '1';
+    appleCalendarLink.style.pointerEvents = 'auto';
+  }
 }
 
 function selectAppleTeam(card) {
   appleTeamResults.querySelectorAll('.team-card').forEach(c => c.classList.remove('selected'));
   card.classList.add('selected');
   appleSelectedTeam = { id: card.dataset.id, name: card.dataset.name, league: card.dataset.league };
-  appleCalendarLink.href = buildWebcalUrl(appleSelectedTeam);
-  appleSelectedSummary.textContent = `Ready: ${appleSelectedTeam.name} (${appleSelectedTeam.league})`;
-  appleStepSync.classList.remove('hidden');
-  appleStepSync.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  loadAppleSeason(appleSelectedTeam);
 }
 
 // Non-team sport (PGA / NASCAR / UFC)
 appleEventSportBtn.addEventListener('click', () => {
   appleSelectedTeam = { id: null, name: appleLeagueSelect.value, league: appleLeagueSelect.value };
-  appleCalendarLink.href = buildWebcalUrl(appleSelectedTeam);
-  appleSelectedSummary.textContent = `Ready: ${appleSelectedTeam.name} — full season schedule`;
-  appleStepSync.classList.remove('hidden');
-  appleStepSync.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  loadAppleSeason(appleSelectedTeam);
 });
 
 function resetAppleSearch() {
   appleTeamResults.innerHTML = '';
   appleStepSync.classList.add('hidden');
+  appleCalendarLink.href            = '#';
+  appleCalendarLink.style.opacity   = '1';
+  appleCalendarLink.style.pointerEvents = 'auto';
+  appleCalendarLink.style.display   = '';
   appleSelectedTeam = null;
 }
 

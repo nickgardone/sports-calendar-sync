@@ -68,16 +68,21 @@ class ESPNClient:
 
         return results
 
-    def get_team_schedule(self, team_id, league_key):
-        """Fetch schedule events for a team. Returns (events, season_year) or ([], None)."""
+    def get_team_schedule(self, team_id, league_key, season=None):
+        """Fetch schedule events for a team. Returns (events, season_year) or ([], None).
+
+        If `season` is provided (e.g. from a locked Apple Calendar subscription URL),
+        only that specific year is tried — no auto-advance to the next season.
+        Without a lock, tries current year then next; never falls back to previous.
+        """
         cfg = LEAGUE_CONFIG[league_key]
         url = f"{ESPN_BASE}/{cfg['sport']}/{cfg['league']}/teams/{team_id}/schedule"
         now = datetime.now()
         year = now.year
 
-        # Try current year, then next (never fall back to previous — stale data
-        # would pollute live calendar subscriptions during the off-season gap)
-        for season_year in [year, year + 1]:
+        years_to_try = [int(season)] if season else [year, year + 1]
+
+        for season_year in years_to_try:
             data = self._get(url, params={'season': season_year})
             if data is None:
                 continue
