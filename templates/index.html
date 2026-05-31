@@ -95,8 +95,8 @@
       <div id="apple-selected-summary" class="text-sm" style="margin-bottom:16px;"></div>
 
       <p class="text-sm" style="margin-bottom:20px;">
-        Tap the button below. Apple Calendar will ask you to subscribe — tap
-        <strong>Subscribe</strong> and every game appears in your calendar instantly.
+        Tap the button below — you'll be prompted to subscribe. Tap
+        <strong>Subscribe</strong> and every game appears in Apple Calendar instantly.
         Your calendar will also stay up to date automatically as the schedule changes.
       </p>
 
@@ -480,8 +480,8 @@ appleCalendarLink.addEventListener('click', () => {
   if (!appleSelectedTeam || !appleCalendarLink.href.startsWith('webcal')) return;
   document.getElementById('apple-status-area').innerHTML = `
     <div class="alert alert-success">
-      ✅ <strong>Tap Subscribe in the prompt</strong> and your
-      ${appleSelectedTeam.name} games will appear in Apple Calendar within a few seconds.
+      ✅ <strong>When prompted, tap Subscribe</strong> — your
+      ${appleSelectedTeam.name} schedule will appear in Apple Calendar within seconds.
     </div>`;
 });
 
