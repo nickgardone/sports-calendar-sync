@@ -1,12 +1,12 @@
 import os
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import requests as http_requests
 from flask import (
     Flask, session, redirect, url_for, request,
-    jsonify, render_template
+    jsonify, render_template, Response
 )
 
 from espn_client import ESPNClient
@@ -18,6 +18,81 @@ from leagues import LEAGUE_CONFIG
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
+
+
+# ---------------------------------------------------------------------------
+# ICS (iCalendar) helpers for Apple Calendar / .ics download
+# ---------------------------------------------------------------------------
+
+def _ics_escape(s):
+    """Escape special characters for iCalendar property values (RFC 5545)."""
+    if not s:
+        return ''
+    return str(s).replace('\\', '\\\\').replace('\n', '\\n').replace(',', '\\,').replace(';', '\\;')
+
+
+def _ics_fold(line):
+    """Fold lines longer than 75 octets per RFC 5545 §3.1."""
+    if len(line.encode('utf-8')) <= 75:
+        return line
+    result = []
+    while len(line.encode('utf-8')) > 75:
+        cut = 75
+        # Walk back from 75 to avoid splitting a multibyte character
+        while cut > 0:
+            try:
+                line[:cut].encode('utf-8')
+                break
+            except UnicodeDecodeError:
+                cut -= 1
+        result.append(line[:cut])
+        line = ' ' + line[cut:]
+    result.append(line)
+    return '\r\n'.join(result)
+
+
+def generate_ics(games, calendar_name):
+    """Return an iCalendar string (.ics) for a list of game dicts."""
+    lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Sports Schedule Importer//EN',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        _ics_fold(f'X-WR-CALNAME:{_ics_escape(calendar_name)}'),
+    ]
+
+    for i, game in enumerate(games):
+        try:
+            start_dt = game.get('start_utc')
+            if start_dt is None:
+                continue
+            # Accepts both datetime objects and ISO strings
+            if isinstance(start_dt, str):
+                start_dt = datetime.fromisoformat(start_dt.replace('Z', '+00:00'))
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=timezone.utc)
+
+            end_dt = start_dt + timedelta(hours=game.get('duration_hours', 3))
+            dtstart = start_dt.strftime('%Y%m%dT%H%M%SZ')
+            dtend   = end_dt.strftime('%Y%m%dT%H%M%SZ')
+            uid     = f'sports-{i}-{dtstart}@sports-schedule-importer'
+
+            lines.append('BEGIN:VEVENT')
+            lines.append(f'UID:{uid}')
+            lines.append(f'DTSTART:{dtstart}')
+            lines.append(f'DTEND:{dtend}')
+            lines.append(_ics_fold(f'SUMMARY:{_ics_escape(game.get("title", "Game"))}'))
+            if game.get('location'):
+                lines.append(_ics_fold(f'LOCATION:{_ics_escape(game["location"])}'))
+            if game.get('description'):
+                lines.append(_ics_fold(f'DESCRIPTION:{_ics_escape(game["description"])}'))
+            lines.append('END:VEVENT')
+        except Exception:
+            continue
+
+    lines.append('END:VCALENDAR')
+    return '\r\n'.join(lines) + '\r\n'
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +306,54 @@ def api_sync():
         'errors': errors,
         'total': len(games),
     })
+
+
+@app.route('/api/download-ics', methods=['POST'])
+def api_download_ics():
+    """Generate and return an .ics file for Apple Calendar / any calendar app."""
+    data = request.get_json() or {}
+    team_id    = data.get('team_id')
+    team_name  = data.get('team_name', '')
+    league_key = data.get('league', '').upper()
+
+    if league_key not in LEAGUE_CONFIG:
+        return jsonify({'error': f'Unknown league: {league_key}'}), 400
+
+    cfg  = LEAGUE_CONFIG[league_key]
+    espn = ESPNClient()
+
+    if cfg['team_based']:
+        events, season_year = espn.get_team_schedule(team_id, league_key)
+        if not events:
+            return jsonify({
+                'status': 'no_schedule',
+                'message': (
+                    f"The {team_name} schedule for {datetime.now().year} "
+                    f"hasn't been released yet. Check back closer to the season start."
+                ),
+            })
+        games = [espn.parse_team_game(e, team_id, team_name, league_key) for e in events]
+    else:
+        events = espn.get_event_schedule(league_key)
+        if not events:
+            return jsonify({
+                'status': 'no_schedule',
+                'message': f"The {league_key} schedule hasn't been released yet. Check back later.",
+            })
+        games = [espn.parse_event_game(e, league_key) for e in events]
+
+    games = [g for g in games if g]
+    cal_name = team_name or league_key
+    ics_content = generate_ics(games, cal_name)
+
+    safe = ''.join(c if c.isalnum() or c in (' ', '-', '_') else '' for c in cal_name)
+    filename = safe.replace(' ', '_') + '_Schedule.ics'
+
+    return Response(
+        ics_content,
+        mimetype='text/calendar; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 if __name__ == '__main__':

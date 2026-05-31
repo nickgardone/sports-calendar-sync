@@ -420,6 +420,45 @@ select:focus, input[type="text"]:focus { border-color: #3b82f6; }
 .modal-body .prose a  { color: #3b82f6; text-decoration: underline; }
 .modal-body .effective { font-size: 0.82rem; color: #64748b; margin-bottom: 20px; }
 
+/* ── Calendar type choice (landing page) ──────────────────────────────── */
+.calendar-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.cal-or {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.btn-apple {
+  background: #1c1c1e;
+  color: #fff;
+}
+.btn-apple:hover { background: #3a3a3c; }
+
+/* ── Back link ────────────────────────────────────────────────────────── */
+.btn-back {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.btn-back:hover { text-decoration: underline; }
+
 /* ── Mobile ───────────────────────────────────────────────────────────── */
 @media (max-width: 520px) {
   .card { padding: 24px 18px; }
