@@ -1,7 +1,7 @@
 # Sports Team Schedule Importer — Project Briefing
 
 ## What This Is
-A web app that lets users connect their Google Calendar and sync a full sports team schedule to it in one click. Supports NFL, NBA, MLB, NHL, MLS, WNBA, PGA Tour, NASCAR, and UFC. Built originally as a Python CLI, then wrapped in a Flask web UI and deployed to Render.com.
+A web app that lets users connect their Google Calendar or Apple Calendar and sync a full sports team schedule in one click. Supports NFL, NBA, MLB, NHL, MLS, WNBA, PGA Tour, NASCAR, and UFC. Built originally as a Python CLI, then wrapped in a Flask web UI and deployed to Render.com.
 
 ---
 
@@ -48,7 +48,9 @@ Flask server. Routes:
 - `GET /error` — error display page
 - `POST /api/search` — ESPN team search, returns JSON list of matching teams
 - `GET /api/calendars` — returns user's Google Calendar list
-- `POST /api/sync` — fetches schedule + creates calendar events, returns JSON summary
+- `GET /api/season` — returns active season year for a team/league (used by Apple Calendar flow)
+- `POST /api/sync` — fetches schedule + creates Google Calendar events, returns JSON summary
+- `GET /ics` — serves live iCalendar (.ics) feed for Apple Calendar webcal:// subscriptions
 
 ### OAuth Implementation (IMPORTANT)
 Uses **plain authorization-code flow with direct HTTP calls** — NOT google-auth-oauthlib Flow.
@@ -61,6 +63,8 @@ Unofficial ESPN API — no key required.
 - Team sports: `https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/teams/{id}/schedule`
 - PGA/NASCAR: weekly sweep of scoreboard endpoint (PGA returns 48 events/year)
 - NASCAR slug: `nascar-premier` (NOT `nascar-premier-series`)
+- `get_team_schedule()` accepts optional `season` param to lock to a specific year
+- Season fallback: tries current year → next year. Never falls back to previous year (prevents stale data in Apple Calendar subscriptions)
 - Returns game dicts: `{title, start_utc, duration_hours, location, league, is_home, status, description}`
 
 ### Google Calendar (google_calendar.py)
@@ -69,6 +73,58 @@ Two classes:
 - `GoogleCalendarWebClient` — accepts credentials dict from Flask session
 Both support `color_id` parameter (Google Calendar colorId 1–11).
 `CALENDAR_COLORS` list defines all 11 colors with hex values for the UI color picker.
+
+### Apple Calendar / ICS (app.py)
+- `generate_ics()` — manual RFC 5545 iCalendar generator (no external library)
+- `_ics_escape()` / `_ics_fold()` — helpers for proper ICS formatting
+- `GET /ics` — serves live .ics feed; accepts `season` param to lock to specific year
+- `GET /api/season` — lightweight endpoint to determine active season year for a team
+
+---
+
+## Calendar Type Choice (Landing Page)
+The unauthenticated landing page presents two options:
+1. **Google Calendar** — OAuth sign-in → direct event sync with color picker
+2. **Apple Calendar** — no sign-in required → webcal:// subscription
+
+### Apple Calendar Flow (no auth required)
+1. User clicks "Use Apple Calendar" → hero section hides, Apple search section appears
+2. Step 1: League dropdown + team search (same ESPN search as Google flow)
+3. JS calls `GET /api/season?team_id=X&league=Y` to determine active season year
+4. If season found: "Add to Apple Calendar" button appears with locked webcal:// URL
+5. If no season: "Schedule not available yet" warning shown
+6. User taps button → prompted to subscribe → games appear immediately
+7. Confirmation message: "When prompted, tap Subscribe — your [team] schedule will appear in Apple Calendar within seconds."
+
+### webcal:// Subscription Details
+- Protocol is intercepted by iOS/macOS and opens Apple Calendar natively
+- Season year is locked in URL: `webcal://host/ics?team_id=X&league=NFL&team_name=Bills&season=2026`
+- Apple Calendar refreshes the URL periodically (hourly to daily)
+- Each refresh returns only the locked season's data — never auto-advances to next year
+
+---
+
+## Season Tollgate (Apple Calendar)
+Prevents Apple Calendar from auto-importing the following year's schedule.
+Foundation for Option A monetization (Stripe payment gate) to be added later.
+
+### How it works
+1. Season year locked in webcal:// URL at subscription time (via `/api/season`)
+2. `/ics` endpoint always returns data for the locked year only
+3. When all games are in the past (season over):
+   - Checks ESPN for next year's schedule availability
+   - If **not available**: nothing injected — Apple Calendar keeps refreshing silently
+   - If **available**: injects a reminder event dated TODAY: *"🔔 Sync [Team] [Year+1] schedule"* with link back to app
+4. Reminder event UID is stable (`tollgate-{league}-{team_id}-{season}@sports-schedule-importer`) so Apple Calendar updates the event rather than creating duplicates
+5. Reminder appears the moment ESPN releases the new schedule — sports-agnostic (no hardcoded dates)
+
+### Option A (Future Monetization — NOT YET BUILT)
+- Stripe Checkout + signed JWT token approach
+- `/api/season` is the payment gate hook: currently returns season year freely; will require payment verification before returning
+- Signed token contains: team_id, league, season_year, expiry (1 year)
+- Token embedded in webcal:// URL; `/ics` validates token before serving schedule
+- No database needed — JWT is self-contained proof of purchase
+- Price point TBD (originally discussed at $1-3/team/season; Stripe fees ~$0.30+2.9% per transaction)
 
 ---
 
@@ -95,14 +151,28 @@ Set in Render dashboard → Environment:
 ---
 
 ## Key UI Details (index.html + style.css)
-- **Unauthenticated:** Hero landing page with "Connect Google Calendar" button + feature list + Privacy Policy footer
-- **Authenticated:** Two-step flow:
-  1. League dropdown (with chevron arrow) + team search → results as clickable cards
-  2. Calendar selector + color picker (11 Google Calendar color swatches) + sync button
-- **Non-team sports** (PGA/NASCAR/UFC): team search hidden, "Load Full Schedule" button shown
-- **Privacy Policy:** Opens as scrollable modal overlay (✕ to close, click backdrop, or Escape). Also accessible at `/privacy` for Google's review.
-- **Error states:** Inline alert if schedule not available yet; error page for auth failures
-- **Color picker:** 11 swatches + "Calendar default" option. Selected colorId sent to `/api/sync`
+
+### Unauthenticated Landing
+- Hero card with two calendar options: "Connect Google Calendar" + "Use Apple Calendar"
+- Clicking Apple Calendar hides hero, shows Apple search flow (no OAuth needed)
+- "← Back" button returns to the calendar choice
+- Feature list: 9 leagues, Google Calendar, Apple Calendar, home/away labeling, privacy
+
+### Google Calendar Flow (authenticated)
+- Two-step: League dropdown + team search → calendar selector + color picker + sync button
+- Non-team sports (PGA/NASCAR/UFC): team search hidden, "Load Full Schedule" button shown
+- Success message includes "Open Google Calendar →" link to calendar.google.com
+- Color picker: 11 swatches + "Calendar default" option
+
+### Apple Calendar Flow (unauthenticated)
+- Step 1: Same league/team search as Google flow
+- When team selected: JS calls /api/season (shows loading state on button)
+- Step 2: "Add to Apple Calendar" link (webcal:// URL with season locked)
+- Confirmation shown immediately on tap: "When prompted, tap Subscribe — your [team] schedule will appear in Apple Calendar within seconds."
+
+### Privacy Policy
+- Footer button opens scrollable modal overlay (no navigation away from page)
+- Also accessible at `/privacy` for Google's review URL submission
 
 ---
 
@@ -124,12 +194,15 @@ Requires `credentials.json` (Desktop app type) in the project folder.
 - ✅ Google OAuth sign-in working (after fixing PKCE issue)
 - ✅ Privacy policy modal on landing page
 - ✅ League dropdown with chevron arrow
+- ✅ Apple Calendar flow: webcal:// subscription, season lock, tollgate, reminder event
+- ✅ Confirmation messages for both Google and Apple Calendar flows
 - ✅ GitHub repo: all code committed, credentials excluded
 
 ## What's Pending / In Progress
 - 🔲 Google app verification (allows any user, not just test users)
-- 🔲 Polish updates to the UI (user had more changes in mind — ask them)
+- 🔲 Option A monetization: Stripe Checkout + signed JWT token (foundation built, payment not wired)
 - 🔲 Render auto-deploy not configured (must manually deploy after each push)
+- 🔲 Additional UI polish (ask user what they have in mind)
 
 ---
 
