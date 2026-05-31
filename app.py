@@ -419,7 +419,7 @@ def serve_ics():
                 app_url     = request.host_url.rstrip('/')
                 today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
                 games.append({
-                    'title':          f'\U0001f514 Sync {cal_name} {next_year} schedule',
+                    'title':          f'Sync {cal_name} {next_year} schedule',
                     'start_utc':      today_start,
                     'duration_hours': 24,
                     'uid':            f'tollgate-{league_key}-{team_id or "noteam"}-{season}@sports-schedule-importer',

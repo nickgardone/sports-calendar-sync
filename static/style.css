@@ -3,7 +3,7 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f0f4f8;
+  background: #f8fafc;
   color: #1a202c;
   min-height: 100vh;
 }
@@ -36,12 +36,12 @@ header {
 .logo-icon {
   width: 36px;
   height: 36px;
-  background: #3b82f6;
+  background: #4f46e5;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  flex-shrink: 0;
 }
 
 .user-info {
@@ -70,7 +70,7 @@ header {
   background: #fff;
   border-radius: 16px;
   padding: 32px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 16px rgba(0,0,0,.05);
+  box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.04);
   margin-bottom: 20px;
 }
 
@@ -95,11 +95,6 @@ header {
   line-height: 1.6;
 }
 
-.hero-icon {
-  font-size: 3.5rem;
-  margin-bottom: 20px;
-}
-
 /* ── Buttons ──────────────────────────────────────────────────────────── */
 .btn {
   display: inline-flex;
@@ -118,10 +113,10 @@ header {
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .btn-primary {
-  background: #3b82f6;
+  background: #4f46e5;
   color: #fff;
 }
-.btn-primary:hover:not(:disabled) { background: #2563eb; }
+.btn-primary:hover:not(:disabled) { background: #4338ca; }
 
 .btn-google {
   background: #fff;
@@ -168,7 +163,7 @@ select {
   cursor: pointer;
 }
 
-select:focus, input[type="text"]:focus { border-color: #3b82f6; }
+select:focus, input[type="text"]:focus { border-color: #4f46e5; }
 
 .search-row {
   display: flex;
@@ -190,8 +185,8 @@ select:focus, input[type="text"]:focus { border-color: #3b82f6; }
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
-.team-card:hover { border-color: #3b82f6; background: #eff6ff; }
-.team-card.selected { border-color: #3b82f6; background: #eff6ff; }
+.team-card:hover { border-color: #4f46e5; background: #eef2ff; }
+.team-card.selected { border-color: #4f46e5; background: #eef2ff; }
 
 .team-name { font-weight: 600; font-size: 0.95rem; }
 
@@ -273,7 +268,7 @@ select:focus, input[type="text"]:focus { border-color: #3b82f6; }
 .step-num {
   width: 26px;
   height: 26px;
-  background: #3b82f6;
+  background: #4f46e5;
   color: #fff;
   border-radius: 50%;
   font-size: 0.8rem;
@@ -300,7 +295,7 @@ select:focus, input[type="text"]:focus { border-color: #3b82f6; }
   width: 22px;
   height: 22px;
   border: 3px solid #e2e8f0;
-  border-top-color: #3b82f6;
+  border-top-color: #4f46e5;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -308,24 +303,24 @@ select:focus, input[type="text"]:focus { border-color: #3b82f6; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .alert {
-  padding: 16px 20px;
+  padding: 14px 20px;
   border-radius: 10px;
   font-size: 0.92rem;
   line-height: 1.5;
 }
 .alert-success {
   background: #f0fdf4;
-  border: 1.5px solid #86efac;
+  border-left: 4px solid #16a34a;
   color: #166534;
 }
 .alert-warning {
   background: #fffbeb;
-  border: 1.5px solid #fcd34d;
+  border-left: 4px solid #d97706;
   color: #92400e;
 }
 .alert-error {
   background: #fef2f2;
-  border: 1.5px solid #fca5a5;
+  border-left: 4px solid #dc2626;
   color: #991b1b;
 }
 
@@ -349,6 +344,31 @@ select:focus, input[type="text"]:focus { border-color: #3b82f6; }
 .hidden { display: none !important; }
 .mt-12 { margin-top: 12px; }
 .text-sm { font-size: 0.85rem; color: #64748b; }
+
+/* ── Feature list ─────────────────────────────────────────────────────── */
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.feature-item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.feature-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: #eef2ff;
+  color: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 
 /* ── Privacy modal ────────────────────────────────────────────────────── */
 .modal-overlay {
@@ -417,7 +437,7 @@ select:focus, input[type="text"]:focus { border-color: #3b82f6; }
 .modal-body .prose p  { margin-bottom: 10px; line-height: 1.65; color: #374151; font-size: 0.9rem; }
 .modal-body .prose ul { margin: 0 0 10px 18px; }
 .modal-body .prose li { margin-bottom: 5px; line-height: 1.6; color: #374151; font-size: 0.9rem; }
-.modal-body .prose a  { color: #3b82f6; text-decoration: underline; }
+.modal-body .prose a  { color: #4f46e5; text-decoration: underline; }
 .modal-body .effective { font-size: 0.82rem; color: #64748b; margin-bottom: 20px; }
 
 /* ── Calendar type choice (landing page) ──────────────────────────────── */
@@ -438,16 +458,17 @@ select:focus, input[type="text"]:focus { border-color: #3b82f6; }
 }
 
 .btn-apple {
-  background: #1c1c1e;
+  background: #18181b;
   color: #fff;
+  border: 1px solid rgba(255,255,255,0.08);
 }
-.btn-apple:hover { background: #3a3a3c; }
+.btn-apple:hover { background: #27272a; }
 
 /* ── Back link ────────────────────────────────────────────────────────── */
 .btn-back {
   background: none;
   border: none;
-  color: #3b82f6;
+  color: #4f46e5;
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
