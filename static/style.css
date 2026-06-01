@@ -384,7 +384,7 @@ select:focus, input[type="text"]:focus { border-color: #4f46e5; }
   align-items: baseline;
   gap: 6px;
   width: fit-content;
-  margin: 20px auto 0;
+  margin: 32px auto 0;
   background: #eef2ff;
   border: 1px solid #c7d2fe;
   border-radius: 10px;
@@ -498,6 +498,14 @@ select:focus, input[type="text"]:focus { border-color: #4f46e5; }
 .modal-body .effective { font-size: 0.82rem; color: #64748b; margin-bottom: 20px; }
 
 /* ── Calendar type choice (landing page) ──────────────────────────────── */
+.calendar-choice-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
 .calendar-choice {
   display: flex;
   flex-direction: column;
