@@ -91,8 +91,34 @@ header {
 .hero p {
   color: #64748b;
   font-size: 1rem;
-  margin-bottom: 32px;
+  margin-bottom: 20px;
   line-height: 1.6;
+}
+
+.hero-sub {
+  color: #64748b;
+  font-size: 1rem;
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.league-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.league-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4f46e5;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  padding: 4px 12px;
+  letter-spacing: 0.03em;
 }
 
 /* ── Buttons ──────────────────────────────────────────────────────────── */
