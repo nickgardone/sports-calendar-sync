@@ -207,6 +207,15 @@ select:focus, input[type="text"]:focus { border-color: #4f46e5; }
 /* ── Team results ─────────────────────────────────────────────────────── */
 #team-results { margin-top: 16px; }
 
+.results-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
 .team-card {
   display: flex;
   align-items: center;

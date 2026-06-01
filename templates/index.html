@@ -442,7 +442,7 @@ async function searchAppleTeams() {
     return;
   }
 
-  appleTeamResults.innerHTML = teams.map(t => `
+  appleTeamResults.innerHTML = '<p class="results-label">Select Team</p>' + teams.map(t => `
     <div class="team-card" data-id="${t.id}" data-name="${t.name}" data-league="${t.league}">
       <span class="team-name">${t.name}</span>
       <span class="league-badge">${t.league}</span>
@@ -620,7 +620,7 @@ async function searchTeams() {
     return;
   }
 
-  teamResults.innerHTML = teams.map(t => `
+  teamResults.innerHTML = '<p class="results-label">Select Team</p>' + teams.map(t => `
     <div class="team-card" data-id="${t.id}" data-name="${t.name}" data-league="${t.league}">
       <span class="team-name">${t.name}</span>
       <span class="league-badge">${t.league}</span>
