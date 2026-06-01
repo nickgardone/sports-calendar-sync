@@ -384,7 +384,7 @@ select:focus, input[type="text"]:focus { border-color: #4f46e5; }
   align-items: baseline;
   gap: 6px;
   width: fit-content;
-  margin: 0 auto 28px;
+  margin: 20px auto 0;
   background: #eef2ff;
   border: 1px solid #c7d2fe;
   border-radius: 10px;

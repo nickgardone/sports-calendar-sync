@@ -49,12 +49,6 @@
         <span class="league-pill">UFC</span>
       </div>
     </div>
-    {% if sync_count %}
-    <div class="sync-counter">
-      <span class="sync-num">{{ "{:,}".format(sync_count) }}</span>
-      <span class="sync-label">schedules synced by sports fans!</span>
-    </div>
-    {% endif %}
     <div class="calendar-choice">
       <a href="/oauth/start" class="btn btn-google">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
@@ -69,6 +63,12 @@
         Use Apple Calendar
       </button>
     </div>
+    {% if sync_count %}
+    <div class="sync-counter">
+      <span class="sync-num">{{ "{:,}".format(sync_count) }}</span>
+      <span class="sync-label">schedules synced by sports fans!</span>
+    </div>
+    {% endif %}
   </div>
 
   <!-- Apple Calendar flow (hidden until chosen) -->
