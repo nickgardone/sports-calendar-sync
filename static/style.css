@@ -104,10 +104,16 @@ header {
 
 .league-pills {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.league-pills-row {
+  display: flex;
   gap: 8px;
   justify-content: center;
-  margin-bottom: 32px;
 }
 
 .league-pill {
