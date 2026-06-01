@@ -299,11 +299,14 @@ def api_calendars():
 @app.route('/api/season')
 def api_season():
     """
-    Return the active season year for a team/league.
+    Return the active season year for a team/league, but only if the schedule
+    contains at least one future game. A season that exists but is fully in the
+    past (e.g. NHL 2025-26 in June 2026) is treated as unavailable so users
+    aren't offered a calendar full of already-played games.
+
     Used by the Apple Calendar flow to lock the season into the webcal:// URL
-    before the user subscribes — prevents auto-advance to next season without
-    the user returning to the app (and eventually paying, per Option A).
-    Returns: { "season": 2026 } or { "season": null } if no schedule is out yet.
+    and by the Google Calendar pre-flight check.
+    Returns: { "season": 2026 } or { "season": null } if unavailable.
     """
     team_id    = request.args.get('team_id') or None
     league_key = request.args.get('league', '').upper()
@@ -313,11 +316,31 @@ def api_season():
 
     cfg  = LEAGUE_CONFIG[league_key]
     espn = ESPNClient()
+    now  = datetime.now(timezone.utc)
 
     if cfg['team_based']:
-        _, season_year = espn.get_team_schedule(team_id, league_key)
+        events, season_year = espn.get_team_schedule(team_id, league_key)
+        if events and season_year:
+            # Confirm at least one game is in the future.
+            # If the whole season is in the past, treat as unavailable.
+            has_future = False
+            for ev in events:
+                date_str = ev.get('date', '')
+                if not date_str:
+                    comps = ev.get('competitions', [{}])
+                    date_str = comps[0].get('date', '') if comps else ''
+                if date_str:
+                    try:
+                        ev_dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                        if ev_dt > now:
+                            has_future = True
+                            break
+                    except Exception:
+                        pass
+            if not has_future:
+                season_year = None
     else:
-        events     = espn.get_event_schedule(league_key)
+        events      = espn.get_event_schedule(league_key)
         season_year = datetime.now().year if events else None
 
     return jsonify({'season': season_year})
