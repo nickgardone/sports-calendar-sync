@@ -377,6 +377,26 @@ select:focus, input[type="text"]:focus { border-color: #4f46e5; }
 .mt-12 { margin-top: 12px; }
 .text-sm { font-size: 0.85rem; color: #64748b; }
 
+/* ── Sync counter (social proof) ─────────────────────────────────────── */
+.sync-counter {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+
+.sync-num {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sync-label {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
 /* ── Feature list ─────────────────────────────────────────────────────── */
 .feature-list {
   display: flex;

@@ -21,6 +21,50 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
 
 
 # ---------------------------------------------------------------------------
+# Upstash Redis — sync counter (social proof)
+# Graceful degradation: if env vars are absent the counter is simply hidden.
+# ---------------------------------------------------------------------------
+
+_UPSTASH_URL   = os.environ.get('UPSTASH_REDIS_REST_URL', '').rstrip('/')
+_UPSTASH_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '')
+_COUNTER_KEY   = 'total_syncs'
+
+
+def _redis_headers():
+    return {'Authorization': f'Bearer {_UPSTASH_TOKEN}'}
+
+
+def _get_sync_count():
+    """Return the current sync count (int) or None if Redis is unavailable."""
+    if not _UPSTASH_URL or not _UPSTASH_TOKEN:
+        return None
+    try:
+        resp = http_requests.get(
+            f'{_UPSTASH_URL}/get/{_COUNTER_KEY}',
+            headers=_redis_headers(),
+            timeout=2,
+        )
+        result = resp.json().get('result')
+        return int(result) if result is not None else 0
+    except Exception:
+        return None
+
+
+def _increment_sync_count():
+    """Increment the sync counter. Fire-and-forget — never raises."""
+    if not _UPSTASH_URL or not _UPSTASH_TOKEN:
+        return
+    try:
+        http_requests.post(
+            f'{_UPSTASH_URL}/incr/{_COUNTER_KEY}',
+            headers=_redis_headers(),
+            timeout=2,
+        )
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
 # ICS (iCalendar) helpers for Apple Calendar / .ics download
 # ---------------------------------------------------------------------------
 
@@ -105,6 +149,7 @@ def index():
     user_email = session.get('user_email')
     leagues = list(LEAGUE_CONFIG.keys())
     team_based = {k: v['team_based'] for k, v in LEAGUE_CONFIG.items()}
+    sync_count = _get_sync_count()
     return render_template(
         'index.html',
         authed=authed,
@@ -112,6 +157,7 @@ def index():
         leagues=leagues,
         team_based=team_based,
         colors=CALENDAR_COLORS,
+        sync_count=sync_count,
     )
 
 
@@ -277,6 +323,17 @@ def api_season():
     return jsonify({'season': season_year})
 
 
+@app.route('/api/track-apple', methods=['POST'])
+def api_track_apple():
+    """
+    Increment the sync counter when a user taps the Apple Calendar subscribe link.
+    Called client-side (fire-and-forget) — we can't verify the subscription
+    actually completed, but the tap is a strong intent signal.
+    """
+    _increment_sync_count()
+    return jsonify({'ok': True})
+
+
 @app.route('/api/sync', methods=['POST'])
 def api_sync():
     if 'credentials' not in session:
@@ -326,6 +383,7 @@ def api_sync():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+    _increment_sync_count()
     return jsonify({
         'status': 'success',
         'created': created,
