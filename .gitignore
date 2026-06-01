@@ -12,5 +12,8 @@ __pycache__/
 # macOS
 .DS_Store
 
-# Screenshots / local notes
+# Screenshots / local notes (exclude PNGs except favicon assets)
 *.png
+!static/favicon_final_32.png
+!static/favicon_final_512.png
+!static/favicon_final_apple_touch.png
