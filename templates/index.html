@@ -88,18 +88,18 @@
       <div class="form-group">
         <label for="apple-league-select">League</label>
         <select id="apple-league-select">
+          <option value="" disabled selected>Select League</option>
           {% for l in leagues %}
           <option value="{{ l }}">{{ l }}</option>
           {% endfor %}
         </select>
       </div>
 
-      <div class="form-group" id="apple-team-input-wrap">
-        <label for="apple-team-input">Team name</label>
-        <div class="search-row">
-          <input type="text" id="apple-team-input" placeholder="e.g. Bills, Lakers, Yankees…" autocomplete="off" />
-          <button class="btn btn-primary" id="apple-search-btn">Search</button>
-        </div>
+      <div class="form-group hidden" id="apple-team-select-wrap">
+        <label for="apple-team-select">Team</label>
+        <select id="apple-team-select">
+          <option value="">— Select team —</option>
+        </select>
       </div>
 
       <div id="apple-event-sport-wrap" class="hidden">
@@ -108,8 +108,6 @@
         </p>
         <button class="btn btn-primary" id="apple-event-sport-btn">Load Full Schedule</button>
       </div>
-
-      <div id="apple-team-results"></div>
     </div>
 
     <!-- Apple Step 2: Subscribe -->
@@ -206,18 +204,18 @@
     <div class="form-group">
       <label for="league-select">League</label>
       <select id="league-select">
+        <option value="" disabled selected>Select League</option>
         {% for l in leagues %}
         <option value="{{ l }}">{{ l }}</option>
         {% endfor %}
       </select>
     </div>
 
-    <div class="form-group" id="team-input-wrap">
-      <label for="team-input">Team name</label>
-      <div class="search-row">
-        <input type="text" id="team-input" placeholder="e.g. Bills, Lakers, Yankees…" autocomplete="off" />
-        <button class="btn btn-primary" id="search-btn">Search</button>
-      </div>
+    <div class="form-group hidden" id="team-select-wrap">
+      <label for="team-select">Team</label>
+      <select id="team-select">
+        <option value="">— Select team —</option>
+      </select>
     </div>
 
     <!-- Non-team sport (PGA / NASCAR / UFC) -->
@@ -227,9 +225,6 @@
       </p>
       <button class="btn btn-primary" id="event-sport-btn">Load Full Schedule</button>
     </div>
-
-    <!-- Team search results -->
-    <div id="team-results"></div>
   </div>
 
   <!-- Step 2: Calendar, color, sync -->
@@ -392,11 +387,9 @@ backToChoiceBtn.addEventListener('click', () => {
 
 // DOM refs
 const appleLeagueSelect    = document.getElementById('apple-league-select');
-const appleTeamInputWrap   = document.getElementById('apple-team-input-wrap');
+const appleTeamSelectWrap  = document.getElementById('apple-team-select-wrap');
+const appleTeamSelect      = document.getElementById('apple-team-select');
 const appleEventSportWrap  = document.getElementById('apple-event-sport-wrap');
-const appleTeamInput       = document.getElementById('apple-team-input');
-const appleSearchBtn       = document.getElementById('apple-search-btn');
-const appleTeamResults     = document.getElementById('apple-team-results');
 const appleStepSync        = document.getElementById('apple-step-sync');
 const appleSelectedSummary = document.getElementById('apple-selected-summary');
 const appleCalendarLink    = document.getElementById('apple-calendar-link');
@@ -404,57 +397,39 @@ const appleEventSportBtn   = document.getElementById('apple-event-sport-btn');
 
 let appleSelectedTeam = null;
 
-// League toggle
-appleLeagueSelect.addEventListener('change', () => {
+// League change — fetch team list for team-based leagues
+appleLeagueSelect.addEventListener('change', async () => {
   resetAppleSearch();
-  if (teamBased[appleLeagueSelect.value]) {
-    appleTeamInputWrap.classList.remove('hidden');
+  const league = appleLeagueSelect.value;
+  if (!league) return;
+
+  if (teamBased[league]) {
     appleEventSportWrap.classList.add('hidden');
+    appleTeamSelect.innerHTML = '<option value="">Loading…</option>';
+    appleTeamSelectWrap.classList.remove('hidden');
+    const res = await fetch('/api/teams?' + new URLSearchParams({ league }));
+    const teams = await res.json();
+    appleTeamSelect.innerHTML = '<option value="">— Select team —</option>' +
+      teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
   } else {
-    appleTeamInputWrap.classList.add('hidden');
+    appleTeamSelectWrap.classList.add('hidden');
     appleEventSportWrap.classList.remove('hidden');
   }
 });
 
-// Team search
-appleSearchBtn.addEventListener('click', searchAppleTeams);
-appleTeamInput.addEventListener('keydown', e => { if (e.key === 'Enter') searchAppleTeams(); });
-
-async function searchAppleTeams() {
-  const query = appleTeamInput.value.trim();
-  if (!query) return;
-
-  appleSearchBtn.disabled = true;
-  appleSearchBtn.textContent = '…';
-  appleTeamResults.innerHTML = '<p class="text-sm" style="padding:8px 0">Searching…</p>';
-  resetAppleSearch();
-
-  const res = await fetch('/api/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ team: query, league: appleLeagueSelect.value }),
-  });
-  const teams = await res.json();
-
-  appleSearchBtn.disabled = false;
-  appleSearchBtn.textContent = 'Search';
-
-  if (!teams.length) {
-    appleTeamResults.innerHTML = '<p class="text-sm" style="padding:8px 0;color:#ef4444">No teams found. Try a shorter name or check the league.</p>';
+// Team dropdown change
+appleTeamSelect.addEventListener('change', () => {
+  if (!appleTeamSelect.value) {
+    resetAppleSearch();
     return;
   }
-
-  appleTeamResults.innerHTML = '<p class="results-label">Select Team</p>' + teams.map(t => `
-    <div class="team-card" data-id="${t.id}" data-name="${t.name}" data-league="${t.league}">
-      <span class="team-name">${t.name}</span>
-      <span class="league-badge">${t.league}</span>
-    </div>
-  `).join('');
-
-  appleTeamResults.querySelectorAll('.team-card').forEach(card => {
-    card.addEventListener('click', () => selectAppleTeam(card));
-  });
-}
+  appleSelectedTeam = {
+    id:     appleTeamSelect.value,
+    name:   appleTeamSelect.options[appleTeamSelect.selectedIndex].text,
+    league: appleLeagueSelect.value,
+  };
+  loadAppleSeason(appleSelectedTeam);
+});
 
 function buildWebcalUrl(team) {
   // webcal:// is identical to https:// but iOS/macOS intercept it and open Calendar.
@@ -471,8 +446,6 @@ function buildWebcalUrl(team) {
 
 async function loadAppleSeason(team) {
   // Determine the active season year from the server, then lock it into the webcal URL.
-  // This is the tollgate hook — when payment (Option A) is added, this call will also
-  // verify that the user has paid for this team/season before returning the season year.
   appleSelectedSummary.textContent = `Checking schedule…`;
   appleCalendarLink.style.opacity = '0.4';
   appleCalendarLink.style.pointerEvents = 'none';
@@ -490,10 +463,10 @@ async function loadAppleSeason(team) {
 
     if (data.season) {
       team.season = data.season;
-      appleCalendarLink.href           = buildWebcalUrl(team);
-      appleCalendarLink.style.opacity  = '1';
+      appleCalendarLink.href                = buildWebcalUrl(team);
+      appleCalendarLink.style.opacity       = '1';
       appleCalendarLink.style.pointerEvents = 'auto';
-      appleSelectedSummary.textContent = `Ready: ${team.name} — ${data.season} season`;
+      appleSelectedSummary.textContent      = `Ready: ${team.name} — ${data.season} season`;
     } else {
       // Schedule not released yet — hide button, show message
       appleCalendarLink.style.display = 'none';
@@ -504,17 +477,10 @@ async function loadAppleSeason(team) {
         </div>`;
     }
   } catch (e) {
-    appleSelectedSummary.textContent = 'Something went wrong. Please try again.';
-    appleCalendarLink.style.opacity  = '1';
+    appleSelectedSummary.textContent      = 'Something went wrong. Please try again.';
+    appleCalendarLink.style.opacity       = '1';
     appleCalendarLink.style.pointerEvents = 'auto';
   }
-}
-
-function selectAppleTeam(card) {
-  appleTeamResults.querySelectorAll('.team-card').forEach(c => c.classList.remove('selected'));
-  card.classList.add('selected');
-  appleSelectedTeam = { id: card.dataset.id, name: card.dataset.name, league: card.dataset.league };
-  loadAppleSeason(appleSelectedTeam);
 }
 
 // Non-team sport (PGA / NASCAR / UFC)
@@ -524,11 +490,8 @@ appleEventSportBtn.addEventListener('click', () => {
 });
 
 // Confirmation message when user taps "Add to Apple Calendar"
-// We can't detect what they chose in the native iOS dialog, but the message
-// is waiting for them when they return to Safari after tapping Subscribe.
 appleCalendarLink.addEventListener('click', () => {
   if (!appleSelectedTeam || !appleCalendarLink.href.startsWith('webcal')) return;
-  // Fire-and-forget: increment the sync counter server-side
   fetch('/api/track-apple', { method: 'POST' }).catch(() => {});
   document.getElementById('apple-status-area').innerHTML = `
     <div class="alert alert-success">
@@ -538,24 +501,22 @@ appleCalendarLink.addEventListener('click', () => {
 });
 
 function resetAppleSearch() {
-  appleTeamResults.innerHTML = '';
+  if (appleTeamSelect.options.length > 0) appleTeamSelect.value = '';
   appleStepSync.classList.add('hidden');
   document.getElementById('apple-status-area').innerHTML = '';
-  appleCalendarLink.href            = '#';
-  appleCalendarLink.style.opacity   = '1';
+  appleCalendarLink.href                = '#';
+  appleCalendarLink.style.opacity       = '1';
   appleCalendarLink.style.pointerEvents = 'auto';
-  appleCalendarLink.style.display   = '';
+  appleCalendarLink.style.display       = '';
   appleSelectedTeam = null;
 }
 
 function resetAppleSelection() {
   resetAppleSearch();
-  appleTeamInput.value = '';
-  appleLeagueSelect.dispatchEvent(new Event('change'));
+  appleLeagueSelect.value = '';
+  appleTeamSelectWrap.classList.add('hidden');
+  appleEventSportWrap.classList.add('hidden');
 }
-
-// Init
-appleLeagueSelect.dispatchEvent(new Event('change'));
 </script>
 {% endif %}
 
@@ -568,11 +529,9 @@ let selectedColorId = '';  // '' = calendar default
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
 const leagueSelect    = document.getElementById('league-select');
-const teamInputWrap   = document.getElementById('team-input-wrap');
+const teamSelectWrap  = document.getElementById('team-select-wrap');
+const teamSelect      = document.getElementById('team-select');
 const eventSportWrap  = document.getElementById('event-sport-wrap');
-const teamInput       = document.getElementById('team-input');
-const searchBtn       = document.getElementById('search-btn');
-const teamResults     = document.getElementById('team-results');
 const stepSync        = document.getElementById('step-sync');
 const calSelect       = document.getElementById('calendar-select');
 const colorPicker     = document.getElementById('color-picker');
@@ -581,69 +540,39 @@ const selectedSummary = document.getElementById('selected-summary');
 const statusArea      = document.getElementById('status-area');
 const eventSportBtn   = document.getElementById('event-sport-btn');
 
-// ── League change ──────────────────────────────────────────────────────────
-leagueSelect.addEventListener('change', () => {
+// ── League change — fetch team list ───────────────────────────────────────
+leagueSelect.addEventListener('change', async () => {
   resetSelection();
   const league = leagueSelect.value;
+  if (!league) return;
+
   if (teamBased[league]) {
-    teamInputWrap.classList.remove('hidden');
     eventSportWrap.classList.add('hidden');
+    teamSelect.innerHTML = '<option value="">Loading…</option>';
+    teamSelectWrap.classList.remove('hidden');
+    const res = await fetch('/api/teams?' + new URLSearchParams({ league }));
+    const teams = await res.json();
+    teamSelect.innerHTML = '<option value="">— Select team —</option>' +
+      teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
   } else {
-    teamInputWrap.classList.add('hidden');
+    teamSelectWrap.classList.add('hidden');
     eventSportWrap.classList.remove('hidden');
   }
 });
 
-// ── Team search ────────────────────────────────────────────────────────────
-searchBtn.addEventListener('click', searchTeams);
-teamInput.addEventListener('keydown', e => { if (e.key === 'Enter') searchTeams(); });
-
-async function searchTeams() {
-  const query = teamInput.value.trim();
-  if (!query) return;
-
-  searchBtn.disabled = true;
-  searchBtn.textContent = '…';
-  teamResults.innerHTML = '<p class="text-sm" style="padding:8px 0">Searching…</p>';
-  resetSelection();
-
-  const res = await fetch('/api/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ team: query, league: leagueSelect.value }),
-  });
-  const teams = await res.json();
-
-  searchBtn.disabled = false;
-  searchBtn.textContent = 'Search';
-
-  if (!teams.length) {
-    teamResults.innerHTML = '<p class="text-sm" style="padding:8px 0;color:#ef4444">No teams found. Try a shorter name or check the league.</p>';
+// ── Team dropdown change ───────────────────────────────────────────────────
+teamSelect.addEventListener('change', () => {
+  if (!teamSelect.value) {
+    resetSelection();
     return;
   }
-
-  teamResults.innerHTML = '<p class="results-label">Select Team</p>' + teams.map(t => `
-    <div class="team-card" data-id="${t.id}" data-name="${t.name}" data-league="${t.league}">
-      <span class="team-name">${t.name}</span>
-      <span class="league-badge">${t.league}</span>
-    </div>
-  `).join('');
-
-  teamResults.querySelectorAll('.team-card').forEach(card => {
-    card.addEventListener('click', () => selectTeam(card));
-  });
-}
-
-function selectTeam(card) {
-  teamResults.querySelectorAll('.team-card').forEach(c => c.classList.remove('selected'));
-  card.classList.add('selected');
   selectedTeam = {
-    id: card.dataset.id,
-    name: card.dataset.name,
-    league: card.dataset.league,
+    id:     teamSelect.value,
+    name:   teamSelect.options[teamSelect.selectedIndex].text,
+    league: leagueSelect.value,
   };
   showSyncStep();
-}
+});
 
 // ── Non-team sport (PGA / NASCAR / UFC) ───────────────────────────────────
 eventSportBtn.addEventListener('click', () => {
@@ -661,11 +590,9 @@ async function showSyncStep() {
 
   // Run season check + calendar load in parallel
   const [seasonRes, calsRes] = await Promise.all([
-    // Pre-flight: check whether the schedule has been released yet
     selectedTeam.id !== null
       ? fetch('/api/season?' + new URLSearchParams({ team_id: selectedTeam.id, league: selectedTeam.league }))
       : Promise.resolve(null),
-    // Load calendars if not already loaded
     calSelect.options.length <= 1
       ? fetch('/api/calendars')
       : Promise.resolve(null),
@@ -685,7 +612,6 @@ async function showSyncStep() {
   if (seasonRes) {
     const seasonData = await seasonRes.json();
     if (!seasonData.season) {
-      // No schedule released yet — block the sync button and warn immediately
       syncBtn.disabled = true;
       selectedSummary.textContent = '';
       statusArea.innerHTML = `
@@ -783,13 +709,10 @@ syncBtn.addEventListener('click', async () => {
 // ── Helpers ────────────────────────────────────────────────────────────────
 function resetSelection() {
   selectedTeam = null;
-  teamResults.innerHTML = '';
+  if (teamSelect.options.length > 0) teamSelect.value = '';
   stepSync.classList.add('hidden');
   statusArea.innerHTML = '';
 }
-
-// Trigger league toggle on load
-leagueSelect.dispatchEvent(new Event('change'));
 </script>
 {% endif %}
 

@@ -68,6 +68,35 @@ class ESPNClient:
 
         return results
 
+    def list_teams(self, league_key):
+        """Return all teams for a team-based league, sorted alphabetically by name."""
+        cfg = LEAGUE_CONFIG.get(league_key)
+        if not cfg or not cfg.get('team_based'):
+            return []
+
+        url = f"{ESPN_BASE}/{cfg['sport']}/{cfg['league']}/teams"
+        data = self._get(url, params={'limit': 200})
+        if not data:
+            return []
+
+        raw_teams = []
+        for sport_block in data.get('sports', []):
+            for league_block in sport_block.get('leagues', []):
+                raw_teams.extend(league_block.get('teams', []))
+        if not raw_teams:
+            raw_teams = data.get('teams', [])
+
+        teams = []
+        for wrapper in raw_teams:
+            team = wrapper.get('team', wrapper)
+            teams.append({
+                'id': team.get('id'),
+                'name': team.get('displayName', team.get('name', 'Unknown')),
+                'league': league_key,
+            })
+
+        return sorted(teams, key=lambda t: t['name'])
+
     def get_team_schedule(self, team_id, league_key, season=None):
         """Fetch schedule events for a team. Returns (events, season_year) or ([], None).
 

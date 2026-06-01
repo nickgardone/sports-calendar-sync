@@ -267,6 +267,19 @@ def logout():
 # API endpoints
 # ---------------------------------------------------------------------------
 
+@app.route('/api/teams')
+def api_teams():
+    """Return all teams for a league, sorted alphabetically."""
+    league_key = request.args.get('league', '').upper()
+    if league_key not in LEAGUE_CONFIG:
+        return jsonify({'error': 'Unknown league'}), 400
+    if not LEAGUE_CONFIG[league_key].get('team_based'):
+        return jsonify([])
+    espn = ESPNClient()
+    teams = espn.list_teams(league_key)
+    return jsonify(teams)
+
+
 @app.route('/api/search', methods=['POST'])
 def api_search():
     data = request.get_json() or {}
