@@ -1,5 +1,5 @@
 import os
-from datetime import timedelta
+from datetime import timedelta, timezone
 from pathlib import Path
 
 from google.auth.transport.requests import Request
@@ -212,13 +212,90 @@ class GoogleCalendarWebClient:
             return 'error', str(e)
 
     def add_schedule(self, games, user_tz='America/New_York', color_id=None):
-        created = skipped = errors = 0
-        for game in games:
-            status, _ = self.create_event(game, user_tz, color_id=color_id)
-            if status == 'created':
-                created += 1
-            elif status == 'exists':
-                skipped += 1
+        """
+        Sync a list of games to Google Calendar efficiently.
+
+        Strategy (avoids per-game HTTP round-trips that time out on large schedules):
+          1. One bulk events.list() across the full season date range to build a
+             set of already-existing event titles — replaces N individual checks.
+          2. Batch inserts in groups of 50 — reduces N insert calls to ~N/50 HTTP
+             requests. Critical for MLB (162 games) which previously hit Render's
+             30-second request timeout.
+        """
+        if not games:
+            return 0, 0, 0
+
+        # ── 1. Bulk existence check (1 paginated list call) ───────────────────
+        start_dts = []
+        for g in games:
+            dt = g.get('start_utc')
+            if dt:
+                if not getattr(dt, 'tzinfo', None):
+                    dt = dt.replace(tzinfo=timezone.utc)
+                start_dts.append(dt)
+
+        existing_titles: set[str] = set()
+        if start_dts:
+            range_min = (min(start_dts) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            range_max = (max(start_dts) + timedelta(hours=6)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            try:
+                page_token = None
+                while True:
+                    resp = self.service.events().list(
+                        calendarId=self.calendar_id,
+                        timeMin=range_min,
+                        timeMax=range_max,
+                        singleEvents=True,
+                        maxResults=2500,
+                        pageToken=page_token,
+                    ).execute()
+                    for ev in resp.get('items', []):
+                        existing_titles.add(ev.get('summary', '').strip())
+                    page_token = resp.get('nextPageToken')
+                    if not page_token:
+                        break
+            except Exception:
+                pass  # If the check fails, proceed and try inserting everything
+
+        # ── 2. Batch inserts (50 per HTTP request) ────────────────────────────
+        counters = {'created': 0, 'skipped': 0, 'errors': 0}
+
+        def _callback(request_id, response, exception):
+            if exception:
+                counters['errors'] += 1
             else:
-                errors += 1
-        return created, skipped, errors
+                counters['created'] += 1
+
+        to_insert = []
+        for game in games:
+            if game.get('title', '').strip() in existing_titles:
+                counters['skipped'] += 1
+            else:
+                to_insert.append(game)
+
+        BATCH_SIZE = 50
+        for i in range(0, len(to_insert), BATCH_SIZE):
+            batch = self.service.new_batch_http_request(callback=_callback)
+            for game in to_insert[i : i + BATCH_SIZE]:
+                start_utc = game['start_utc']
+                if not getattr(start_utc, 'tzinfo', None):
+                    start_utc = start_utc.replace(tzinfo=timezone.utc)
+                end_utc = start_utc + timedelta(hours=game['duration_hours'])
+                start_str = start_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+                end_str   = end_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+                body = {
+                    'summary':     game['title'],
+                    'description': game.get('description', ''),
+                    'start': {'dateTime': start_str, 'timeZone': 'UTC'},
+                    'end':   {'dateTime': end_str,   'timeZone': 'UTC'},
+                }
+                if game.get('location'):
+                    body['location'] = game['location']
+                if color_id:
+                    body['colorId'] = str(color_id)
+                batch.add(self.service.events().insert(
+                    calendarId=self.calendar_id, body=body
+                ))
+            batch.execute()
+
+        return counters['created'], counters['skipped'], counters['errors']
