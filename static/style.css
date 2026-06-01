@@ -100,6 +100,7 @@ header {
   font-size: 1rem;
   margin-bottom: 20px;
   line-height: 1.6;
+  text-wrap: balance;
 }
 
 .league-pills {
@@ -382,19 +383,23 @@ select:focus, input[type="text"]:focus { border-color: #4f46e5; }
   display: flex;
   align-items: baseline;
   gap: 6px;
-  justify-content: center;
-  margin-bottom: 28px;
+  width: fit-content;
+  margin: 0 auto 28px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  padding: 8px 20px;
 }
 
 .sync-num {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 800;
-  color: #0f172a;
+  color: #4f46e5;
 }
 
 .sync-label {
   font-size: 0.85rem;
-  color: #64748b;
+  color: #4338ca;
 }
 
 /* ── Feature list ─────────────────────────────────────────────────────── */
