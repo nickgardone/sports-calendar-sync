@@ -653,18 +653,52 @@ eventSportBtn.addEventListener('click', () => {
 async function showSyncStep() {
   stepSync.classList.remove('hidden');
   statusArea.innerHTML = '';
+  syncBtn.disabled = false;
 
-  selectedSummary.textContent = `Ready to sync: ${selectedTeam.name} (${selectedTeam.league})`;
+  selectedSummary.textContent = `Checking schedule…`;
 
-  // Load calendars if not already loaded
-  if (calSelect.options.length <= 1) {
-    const res = await fetch('/api/calendars');
-    const cals = await res.json();
+  // Run season check + calendar load in parallel
+  const [seasonRes, calsRes] = await Promise.all([
+    // Pre-flight: check whether the schedule has been released yet
+    selectedTeam.id !== null
+      ? fetch('/api/season?' + new URLSearchParams({ team_id: selectedTeam.id, league: selectedTeam.league }))
+      : Promise.resolve(null),
+    // Load calendars if not already loaded
+    calSelect.options.length <= 1
+      ? fetch('/api/calendars')
+      : Promise.resolve(null),
+  ]);
+
+  // Handle calendar list
+  if (calsRes) {
+    const cals = await calsRes.json();
     if (Array.isArray(cals)) {
       calSelect.innerHTML = cals.map(c =>
         `<option value="${c.id}">${c.name}</option>`
       ).join('');
     }
+  }
+
+  // Handle season availability
+  if (seasonRes) {
+    const seasonData = await seasonRes.json();
+    if (!seasonData.season) {
+      // No schedule released yet — block the sync button and warn immediately
+      syncBtn.disabled = true;
+      selectedSummary.textContent = '';
+      statusArea.innerHTML = `
+        <div class="alert alert-warning">
+          <strong>Schedule not available yet</strong><br>
+          The ${selectedTeam.name} schedule for ${new Date().getFullYear()} hasn't been released.
+          Check back closer to the season start.
+        </div>`;
+      stepSync.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    selectedSummary.textContent = `Ready to sync: ${selectedTeam.name} (${selectedTeam.league})`;
+  } else {
+    // Non-team sport (PGA/NASCAR/UFC) — no season check needed
+    selectedSummary.textContent = `Ready to sync: ${selectedTeam.name} (${selectedTeam.league})`;
   }
 
   stepSync.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
