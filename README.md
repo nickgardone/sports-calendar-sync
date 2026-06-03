@@ -1,4 +1,4 @@
-# Sports Schedule Importer
+# Sports Calendar Sync
 
 Add your favorite team's full season schedule to Google Calendar or Apple Calendar in seconds — no manual entry, no CSV files.
 
@@ -52,8 +52,8 @@ Schedule data is fetched from ESPN's public API at sync time. Apple Calendar sub
 ### Setup
 
 ```bash
-git clone https://github.com/nickgardone/Sports-Team-Schedule-Importer.git
-cd Sports-Team-Schedule-Importer
+git clone https://github.com/nickgardone/sports-calendar-sync.git
+cd sports-calendar-sync
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt

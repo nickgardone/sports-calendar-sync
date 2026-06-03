@@ -1,4 +1,4 @@
-# Sports Team Schedule Importer — Project Briefing
+# Sports Calendar Sync — Project Briefing
 
 ## What This Is
 A web app that lets users connect their Google Calendar or Apple Calendar and sync a full sports team schedule in one click. Supports NFL, NBA, MLB, NHL, MLS, WNBA, PGA Tour, NASCAR, and UFC. Built originally as a Python CLI, then wrapped in a Flask web UI and deployed to Render.com.
@@ -7,7 +7,7 @@ A web app that lets users connect their Google Calendar or Apple Calendar and sy
 
 ## Deployment
 - **Live URL:** https://sports-team-schedule-importer.onrender.com
-- **GitHub:** https://github.com/nickgardone/Sports-Team-Schedule-Importer
+- **GitHub:** https://github.com/nickgardone/sports-calendar-sync
 - **Hosting:** Render.com free tier (spins down after inactivity, ~50s cold start)
 - **Auto-deploy:** NOT enabled — user must click Manual Deploy in Render after each push
 - **Branch:** main
