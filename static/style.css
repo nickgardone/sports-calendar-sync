@@ -103,14 +103,36 @@ header {
   text-wrap: balance;
 }
 
-.hero-desc {
-  color: #64748b;
-  font-size: 0.88rem;
-  line-height: 1.65;
+.trust-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  row-gap: 10px;
   margin-bottom: 28px;
-  max-width: 420px;
-  margin-inline: auto;
-  text-wrap: balance;
+}
+
+.trust-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.trust-divider {
+  width: 1px;
+  height: 16px;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+@media (max-width: 520px) {
+  .trust-divider { display: none; }
+  .trust-item { padding: 0 10px; }
 }
 
 .league-pills {
