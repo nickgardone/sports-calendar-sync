@@ -98,8 +98,18 @@ header {
 .hero-sub {
   color: #64748b;
   font-size: 1rem;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   line-height: 1.6;
+  text-wrap: balance;
+}
+
+.hero-desc {
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  margin-bottom: 28px;
+  max-width: 420px;
+  margin-inline: auto;
   text-wrap: balance;
 }
 
