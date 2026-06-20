@@ -1,7 +1,7 @@
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 
 import requests as http_requests
 from flask import (
@@ -79,7 +79,7 @@ def _log_sync_event(team_name: str, league_key: str, calendar_type: str):
         return
     try:
         http_requests.post(
-            f'https://api.airtable.com/v0/{_AIRTABLE_BASE}/{_AIRTABLE_TABLE}',
+            f'https://api.airtable.com/v0/{_AIRTABLE_BASE}/{quote(_AIRTABLE_TABLE, safe="")}',
             headers={
                 'Authorization': f'Bearer {_AIRTABLE_PAT}',
                 'Content-Type': 'application/json',
