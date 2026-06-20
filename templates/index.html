@@ -512,7 +512,11 @@ appleEventSportBtn.addEventListener('click', () => {
 // Confirmation message when user taps "Add to Apple Calendar"
 appleCalendarLink.addEventListener('click', () => {
   if (!appleSelectedTeam || !appleCalendarLink.href.startsWith('webcal')) return;
-  fetch('/api/track-apple', { method: 'POST' }).catch(() => {});
+  fetch('/api/track-apple', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ team_name: appleSelectedTeam.name }),
+  }).catch(() => {});
   document.getElementById('apple-status-area').innerHTML = `
     <div class="alert alert-success">
       <strong>When prompted, tap Subscribe</strong> — your

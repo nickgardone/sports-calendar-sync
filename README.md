@@ -38,6 +38,7 @@ Schedule data is fetched from ESPN's public API at sync time. Apple Calendar sub
 | Google Calendar | Google Calendar API v3 (OAuth 2.0) |
 | Apple Calendar | webcal:// / iCalendar (RFC 5545) |
 | Sync counter | Upstash Redis (REST API) |
+| Sync analytics | Airtable (REST API) |
 | Hosting | Render.com |
 
 ---
@@ -69,6 +70,9 @@ GOOGLE_CLIENT_SECRET=your_client_secret
 FLASK_SECRET_KEY=any_random_string
 UPSTASH_REDIS_REST_URL=your_upstash_url        # optional — sync counter
 UPSTASH_REDIS_REST_TOKEN=your_upstash_token    # optional — sync counter
+AIRTABLE_PAT=your_personal_access_token        # optional — sync analytics
+AIRTABLE_BASE_ID=appXXXXXXXX                   # optional — sync analytics
+AIRTABLE_TABLE_NAME=Sync Events                # optional — sync analytics
 ```
 
 ### Run

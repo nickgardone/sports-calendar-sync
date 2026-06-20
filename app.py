@@ -65,6 +65,37 @@ def _increment_sync_count():
 
 
 # ---------------------------------------------------------------------------
+# Airtable — anonymous sync event log (team, calendar, timestamp)
+# Graceful degradation: no-op if env vars are absent.
+# ---------------------------------------------------------------------------
+
+_AIRTABLE_PAT   = os.environ.get('AIRTABLE_PAT', '')
+_AIRTABLE_BASE  = os.environ.get('AIRTABLE_BASE_ID', '')
+_AIRTABLE_TABLE = os.environ.get('AIRTABLE_TABLE_NAME', 'Sync Events')
+
+
+def _log_sync_event(team_name: str, calendar_type: str):
+    if not _AIRTABLE_PAT or not _AIRTABLE_BASE:
+        return
+    try:
+        http_requests.post(
+            f'https://api.airtable.com/v0/{_AIRTABLE_BASE}/{_AIRTABLE_TABLE}',
+            headers={
+                'Authorization': f'Bearer {_AIRTABLE_PAT}',
+                'Content-Type': 'application/json',
+            },
+            json={'fields': {
+                'Team':      team_name,
+                'Calendar':  calendar_type,
+                'Timestamp': datetime.now(timezone.utc).isoformat(),
+            }},
+            timeout=3,
+        )
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
 # ICS (iCalendar) helpers for Apple Calendar / .ics download
 # ---------------------------------------------------------------------------
 
@@ -361,12 +392,10 @@ def api_season():
 
 @app.route('/api/track-apple', methods=['POST'])
 def api_track_apple():
-    """
-    Increment the sync counter when a user taps the Apple Calendar subscribe link.
-    Called client-side (fire-and-forget) — we can't verify the subscription
-    actually completed, but the tap is a strong intent signal.
-    """
+    data = request.get_json(silent=True) or {}
+    team_name = data.get('team_name', 'Unknown')
     _increment_sync_count()
+    _log_sync_event(team_name, 'Apple')
     return jsonify({'ok': True})
 
 
@@ -420,6 +449,7 @@ def api_sync():
         return jsonify({'error': str(e)}), 500
 
     _increment_sync_count()
+    _log_sync_event(team_name, 'Google')
     return jsonify({
         'status': 'success',
         'created': created,
