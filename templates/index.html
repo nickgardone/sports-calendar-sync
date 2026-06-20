@@ -515,7 +515,7 @@ appleCalendarLink.addEventListener('click', () => {
   fetch('/api/track-apple', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ team_name: appleSelectedTeam.name }),
+    body: JSON.stringify({ team_name: appleSelectedTeam.name, league: appleSelectedTeam.league }),
   }).catch(() => {});
   document.getElementById('apple-status-area').innerHTML = `
     <div class="alert alert-success">

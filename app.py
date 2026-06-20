@@ -71,10 +71,10 @@ def _increment_sync_count():
 
 _AIRTABLE_PAT   = os.environ.get('AIRTABLE_PAT', '')
 _AIRTABLE_BASE  = os.environ.get('AIRTABLE_BASE_ID', '')
-_AIRTABLE_TABLE = os.environ.get('AIRTABLE_TABLE_NAME', 'Sync Events')
+_AIRTABLE_TABLE = os.environ.get('AIRTABLE_TABLE_NAME', 'Sports Calendar Sync Log')
 
 
-def _log_sync_event(team_name: str, calendar_type: str):
+def _log_sync_event(team_name: str, league_key: str, calendar_type: str):
     if not _AIRTABLE_PAT or not _AIRTABLE_BASE:
         return
     try:
@@ -85,9 +85,9 @@ def _log_sync_event(team_name: str, calendar_type: str):
                 'Content-Type': 'application/json',
             },
             json={'fields': {
-                'Team':      team_name,
-                'Calendar':  calendar_type,
-                'Timestamp': datetime.now(timezone.utc).isoformat(),
+                'League':   league_key,
+                'Team':     team_name,
+                'Calendar': calendar_type,
             }},
             timeout=3,
         )
@@ -393,9 +393,10 @@ def api_season():
 @app.route('/api/track-apple', methods=['POST'])
 def api_track_apple():
     data = request.get_json(silent=True) or {}
-    team_name = data.get('team_name', 'Unknown')
+    team_name  = data.get('team_name', 'Unknown')
+    league_key = data.get('league', 'Unknown')
     _increment_sync_count()
-    _log_sync_event(team_name, 'Apple')
+    _log_sync_event(team_name, league_key, 'Apple')
     return jsonify({'ok': True})
 
 
@@ -449,7 +450,7 @@ def api_sync():
         return jsonify({'error': str(e)}), 500
 
     _increment_sync_count()
-    _log_sync_event(team_name, 'Google')
+    _log_sync_event(team_name, league_key, 'Google')
     return jsonify({
         'status': 'success',
         'created': created,
