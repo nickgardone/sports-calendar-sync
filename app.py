@@ -76,10 +76,13 @@ _AIRTABLE_TABLE = os.environ.get('AIRTABLE_TABLE_NAME', 'Sports Calendar Sync Lo
 
 def _log_sync_event(team_name: str, league_key: str, calendar_type: str):
     if not _AIRTABLE_PAT or not _AIRTABLE_BASE:
+        print(f"[Airtable] skipping — PAT or BASE not set")
         return
+    url = f'https://api.airtable.com/v0/{_AIRTABLE_BASE}/{quote(_AIRTABLE_TABLE, safe="")}'
+    print(f"[Airtable] POST {url} | {league_key} / {team_name} / {calendar_type}")
     try:
-        http_requests.post(
-            f'https://api.airtable.com/v0/{_AIRTABLE_BASE}/{quote(_AIRTABLE_TABLE, safe="")}',
+        resp = http_requests.post(
+            url,
             headers={
                 'Authorization': f'Bearer {_AIRTABLE_PAT}',
                 'Content-Type': 'application/json',
@@ -91,8 +94,9 @@ def _log_sync_event(team_name: str, league_key: str, calendar_type: str):
             }},
             timeout=3,
         )
-    except Exception:
-        pass
+        print(f"[Airtable] response {resp.status_code}: {resp.text[:200]}")
+    except Exception as e:
+        print(f"[Airtable] exception: {e}")
 
 
 # ---------------------------------------------------------------------------
